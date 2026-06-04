@@ -5,7 +5,7 @@
 // ============================================================
 
 const jwt = require('jsonwebtoken');
-const { config } = require('../config');
+const { env } = require('../config/env');
 const { AppError } = require('./error-handler');
 
 // ─────────────────────────────────────────
@@ -27,7 +27,7 @@ function requireAuth(req, res, next) {
 
     const token = authHeader.split(' ')[1];
 
-    const payload = jwt.verify(token, config.jwt.accessSecret);
+    const payload = jwt.verify(token, env.jwt.accessSecret);
 
     req.user = payload; // { userId, role, email } — available in all downstream handlers
     next();
