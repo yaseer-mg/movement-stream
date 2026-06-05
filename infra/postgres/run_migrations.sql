@@ -28,6 +28,9 @@
 \echo '>>> Running Migration 007: Analytics...'
 \i 007_create_analytics.sql
 
+\echo '>>> Running Migration 008: Refresh Tokens...'
+\i 008_create_refresh_tokens.sql
+
 \echo ''
 \echo '✅ All migrations complete. Database is ready.'
 \echo ''

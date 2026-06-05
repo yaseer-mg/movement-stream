@@ -1,8 +1,6 @@
 -- ============================================================
 -- MIGRATION 008: REFRESH TOKENS
--- Stores active refresh tokens so we can revoke them on logout.
--- When a user logs out, we DELETE their row here.
--- When they log in again, we INSERT a new row.
+-- Stores hashed refresh tokens so sessions can be revoked.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -30,10 +28,5 @@ BEGIN
   END IF;
 END $$;
 
--- Fast lookup when client sends a refresh token
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
-
--- Automatically clean up expired tokens
--- (run this as a cron job or just let them accumulate and clean periodically)
--- DELETE FROM refresh_tokens WHERE expires_at < now();
