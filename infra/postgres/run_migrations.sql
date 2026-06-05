@@ -5,6 +5,8 @@
 --
 -- Usage:
 --   psql -U postgres -d movement_stream -f run_migrations.sql
+-- Or, after 000_create_database.sql:
+--   PGPASSWORD='Movement2025!' psql -h localhost -U movement_user -d movement_stream -f run_migrations.sql
 -- ============================================================
 
 \echo '>>> Running Migration 001: Users...'
@@ -30,6 +32,12 @@
 
 \echo '>>> Running Migration 008: Refresh Tokens...'
 \i 008_create_refresh_tokens.sql
+
+\echo '>>> Running Migration 009: App Role Permissions...'
+\i 009_grant_app_permissions.sql
+
+\echo '>>> Running Migration 010: Repair Refresh Token Schema...'
+\i 010_repair_refresh_tokens_schema.sql
 
 \echo ''
 \echo '✅ All migrations complete. Database is ready.'
