@@ -8,6 +8,8 @@ const { errorHandler, notFoundHandler } = require('./middleware/error-handler');
 const authRoutes = require('./routes/auth');
 const eventRoutes = require('./routes/events');
 const streamRoutes = require('./routes/stream');
+const chatRoutes = require('./routes/chat');
+const recordingRoutes = require('./routes/recordings');
 const { initWebSocket } = require('./websocket');
 
 const app = express();
@@ -26,6 +28,8 @@ app.get('/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/stream', streamRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/recordings', recordingRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
