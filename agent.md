@@ -553,13 +553,26 @@ location / {
 
 ---
 
-### STEP 9 — Multi-Camera Mixer
+### STEP 9 — Multi-Camera Mixer ✅ COMPLETE
 
-**Status:** Not started
-**Files to modify:**
+**Status:** Done
+**Files modified:**
 ```
-apps/media-server/src/mixer/index.js  (replace stub)
+apps/media-server/src/mixer/index.js        (replaced stub)
+apps/api-server/src/routes/stream.js        (added media server calls)
 ```
+
+**What was built:**
+- Mixer state tracks activeCamera (cam1/cam2/cam3)
+- POST /internal/switch-camera — switches active feed, starts/stops transcoding
+- GET /internal/mixer/status — returns current mixer state
+- GET /internal/mixer/cameras — detailed info on all camera slots
+- POST /internal/mixer/start-all — starts transcoding all connected cameras
+- POST /internal/mixer/stop-all — stops all transcoding (stream end)
+- API server stream routes now call media server:
+  - Camera switch → POST /internal/switch-camera
+  - Stream start → POST /internal/mixer/start-all
+  - Stream end → POST /internal/mixer/stop-all + /packager/cleanup
 
 **What to build:**
 The mixer decides which camera feed FFmpeg is currently consuming.

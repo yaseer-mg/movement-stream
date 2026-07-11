@@ -76,6 +76,16 @@ router.post('/start', requireAuth, requireSuperAdmin, async (req, res, next) => 
       data: { title, description, started_at: status.started_at },
     });
 
+    // Tell media server to start transcoding all connected cameras
+    try {
+      await fetch(`${env.mediaServer.url}/internal/mixer/start-all`, {
+        method: 'POST',
+        headers: { 'x-media-secret': env.mediaServer.secret },
+      });
+    } catch {
+      console.log('Could not reach media server for start-all');
+    }
+
     // Fire n8n webhook (non-blocking — don't fail if n8n is down)
     if (env.n8n.streamStartWebhook) {
       fetch(env.n8n.streamStartWebhook, {
@@ -125,6 +135,20 @@ router.post('/end', requireAuth, requireSuperAdmin, async (req, res, next) => {
       data: { ended_at: status.ended_at },
     });
 
+    // Tell media server to stop all transcoding and clean up HLS
+    try {
+      await fetch(`${env.mediaServer.url}/internal/mixer/stop-all`, {
+        method: 'POST',
+        headers: { 'x-media-secret': env.mediaServer.secret },
+      });
+      await fetch(`${env.mediaServer.url}/packager/cleanup`, {
+        method: 'POST',
+        headers: { 'x-media-secret': env.mediaServer.secret },
+      });
+    } catch {
+      console.log('Could not reach media server for stop-all/cleanup');
+    }
+
     // Fire n8n webhook (non-blocking)
     if (env.n8n.streamEndWebhook) {
       fetch(env.n8n.streamEndWebhook, {
@@ -151,6 +175,21 @@ router.patch('/camera', requireAuth, requireAdmin, async (req, res, next) => {
 
     if (!camera || !validSlots.includes(camera)) {
       throw new AppError(`camera must be one of: ${validSlots.join(', ')}`, 400, 'VALIDATION_ERROR');
+    }
+
+    // Tell the media server to switch the active camera feed
+    try {
+      await fetch(`${env.mediaServer.url}/internal/switch-camera`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-media-secret': env.mediaServer.secret,
+        },
+        body: JSON.stringify({ camera }),
+      });
+    } catch {
+      // Media server might be down — log but don't fail the request
+      console.log('Could not reach media server for camera switch');
     }
 
     await query(
