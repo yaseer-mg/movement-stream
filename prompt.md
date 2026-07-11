@@ -394,7 +394,7 @@ Stores active refresh tokens for JWT auth.
 ### PHASE 2 — MEDIA ENGINE ✅ IN PROGRESS
 - Step 5: Media server folder setup ✅
 - Step 6: WebRTC WHIP ingest endpoint ✅
-- Step 7: FFmpeg transcoding pipeline
+- Step 7: FFmpeg transcoding pipeline ✅
 - Step 8: HLS packaging + Nginx config
 - Step 9: Multi-camera mixer
 - Step 10: AWS S3 recording upload
@@ -428,9 +428,9 @@ Stores active refresh tokens for JWT auth.
 
 ## CURRENT STATUS
 
-**Last completed step:** Step 6 — WebRTC WHIP ingest endpoint
-**Currently working on:** Step 7 — FFmpeg transcoding pipeline
-**Next action:** Wait for permission to begin Step 7
+**Last completed step:** Step 7 — FFmpeg transcoding pipeline
+**Currently working on:** Step 8 — HLS packaging + Nginx config
+**Next action:** Wait for permission to begin Step 8
 
 ---
 

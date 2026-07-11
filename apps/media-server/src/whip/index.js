@@ -1,6 +1,8 @@
 const { Router } = require('express');
 const { RTCPeerConnection } = require('wrtc');
 const { config } = require('../config');
+const { startTranscoding, stopTranscoding } = require('../transcoder');
+const { generateMasterPlaylist } = require('../packager');
 
 const router = Router();
 
@@ -44,6 +46,7 @@ router.post('/', async (req, res) => {
     if (activeConnections.has(cameraSlot)) {
       const old = activeConnections.get(cameraSlot);
       try { old.pc.close(); } catch {}
+      stopTranscoding(cameraSlot);
       activeConnections.delete(cameraSlot);
       console.log(`Closed previous connection on ${cameraSlot}`);
     }
@@ -59,7 +62,18 @@ router.post('/', async (req, res) => {
     // ─── Handle incoming tracks (video + audio from broadcaster) ───
     pc.ontrack = (event) => {
       console.log(`Track received on ${cameraSlot}: ${event.track.kind} (${event.track.label})`);
-      // Step 7 will pipe these tracks into FFmpeg
+
+      // Start FFmpeg transcoding for this camera slot
+      if (!activeConnections.get(cameraSlot)?.transcoding) {
+        try {
+          startTranscoding(cameraSlot);
+          generateMasterPlaylist();
+          activeConnections.get(cameraSlot).transcoding = true;
+          console.log(`Transcoding started for ${cameraSlot}`);
+        } catch (err) {
+          console.error(`Failed to start transcoding for ${cameraSlot}:`, err.message);
+        }
+      }
     };
 
     // ─── Handle connection state changes ───
@@ -73,6 +87,7 @@ router.post('/', async (req, res) => {
 
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         console.log(`Camera ${cameraSlot} disconnected`);
+        stopTranscoding(cameraSlot);
         activeConnections.delete(cameraSlot);
         notifyApiServer('camera.disconnected', { slot: cameraSlot });
       }
@@ -125,6 +140,7 @@ router.delete('/:slot', (req, res) => {
 
   const { pc } = activeConnections.get(slot);
   try { pc.close(); } catch {}
+  stopTranscoding(slot);
   activeConnections.delete(slot);
 
   notifyApiServer('camera.disconnected', { slot });

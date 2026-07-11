@@ -440,14 +440,25 @@ The broadcaster sends a custom header: `X-Camera-Slot: cam1` (or cam2/cam3).
 
 ---
 
-### STEP 7 — FFmpeg Transcoding Pipeline
+### STEP 7 — FFmpeg Transcoding Pipeline ✅ COMPLETE
 
-**Status:** Not started
-**Files to modify:**
+**Status:** Done
+**Files modified:**
 ```
-apps/media-server/src/transcoder/index.js  (replace stub)
-apps/media-server/src/packager/index.js    (replace stub)
+apps/media-server/src/transcoder/index.js  (replaced stub)
+apps/media-server/src/packager/index.js    (replaced stub)
+apps/media-server/src/whip/index.js        (hooked up transcoder)
 ```
+
+**What was built:**
+- 4 quality presets: 1080p (4Mbps), 720p (2Mbps), 480p (1Mbps), 240p (400kbps)
+- FFmpeg spawned per quality level with libx264, veryfast preset, zerolatency tune
+- HLS output: 2-second segments, rolling window of 10, auto-delete old segments
+- startTranscoding(slot) / stopTranscoding(slot) lifecycle management
+- Master playlist generator (master.m3u8 with all quality levels)
+- HLS directory cleanup for stream end
+- HTTP endpoints for internal control: /transcoder/start, /transcoder/stop, /packager/generate-master, /packager/cleanup
+- WHIP endpoint automatically starts transcoding when camera connects, stops when it disconnects
 
 **What to build:**
 
