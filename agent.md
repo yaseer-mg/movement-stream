@@ -494,13 +494,27 @@ Nginx serves this directory as static files to viewers.
 
 ---
 
-### STEP 8 — HLS Delivery + Nginx Config
+### STEP 8 — HLS Delivery + Nginx Config ✅ COMPLETE
 
-**Status:** Not started
-**Files to create:**
+**Status:** Done
+**Files created:**
 ```
 infra/nginx.conf   (full configuration)
 ```
+
+**What was built:**
+- HLS video delivery from /var/hls/ with no-cache headers and correct MIME types
+- CORS headers for cross-origin viewers and embedded players
+- Reverse proxy for API server on /api/
+- WebSocket proxy on /ws with upgrade headers and 24h timeout
+- WebRTC WHIP proxy on /whip/ for broadcaster browsers
+- React frontend serving with try_files for client-side routing
+- Static asset caching (1 year for JS/CSS bundles)
+- Gzip compression for text, JSON, HLS manifests
+- Rate limiting on API (10 req/s per IP, burst 20)
+- HTTP→HTTPS redirect template ready for Let's Encrypt
+- SSL configuration template (A+ rating settings)
+- HSTS header for production
 
 **What to build:**
 Nginx serves two things:
