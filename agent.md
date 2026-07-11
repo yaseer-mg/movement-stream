@@ -158,15 +158,31 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO m
 
 ---
 
-### STEP 4 — Core REST Routes
+### STEP 4 — Core REST Routes ✅ COMPLETE
 
-**Status:** IN PROGRESS — waiting for permission to begin
+**Status:** Done
+**Files created/modified:**
+```
+apps/api-server/src/routes/events.js      (replaced stub)
+apps/api-server/src/routes/stream.js      (replaced stub)
+apps/api-server/src/routes/chat.js        (new file)
+apps/api-server/src/routes/recordings.js  (new file)
+apps/api-server/src/index.js              (added chat + recordings imports)
+```
+
+**What was built:**
+- events.js — Full CRUD: list (public, filterable), get single (public), create (admin), update (admin), delete (admin)
+- stream.js — Stream control: status (public), start (super_admin), end (super_admin), switch camera (admin), toggle chat (admin), get stream key (super_admin)
+- chat.js — Chat system: fetch history (public), send message (auth + rate limited), soft delete (admin)
+- recordings.js — Recordings management: list (public/admin), get (public/admin), update metadata (admin), delete (admin)
+- Registered all routes in index.js
+
 **Files to create/modify:**
 ```
-apps/api-server/src/routes/events.routes.js     (replace stub)
-apps/api-server/src/routes/stream.routes.js     (replace stub)
-apps/api-server/src/routes/chat.routes.js       (replace stub)
-apps/api-server/src/routes/recordings.routes.js (replace stub)
+apps/api-server/src/routes/events.js      (replace stub)
+apps/api-server/src/routes/stream.js      (replace stub)
+apps/api-server/src/routes/chat.js        (new file)
+apps/api-server/src/routes/recordings.js  (new file)
 ```
 
 **What to build:**
@@ -335,10 +351,10 @@ curl http://localhost:4000/api/recordings
 
 ---
 
-### STEP 5 — Media Server Folder Setup
+### STEP 5 — Media Server Folder Setup ✅ COMPLETE
 
-**Status:** Not started
-**Files to create:**
+**Status:** Done
+**Files created:**
 ```
 apps/media-server/package.json
 apps/media-server/.env.example
@@ -353,13 +369,14 @@ apps/media-server/src/recorder/index.js     (stub)
 apps/media-server/src/webhooks/index.js     (stub)
 ```
 
-**What to build:**
-- Separate Express server running on PORT=3001
-- Same config pattern as api-server
-- Stub modules for each media pipeline stage
-- Health check endpoint at GET /health
-- Internal auth middleware that checks MEDIA_SERVER_SECRET header
-  (the api-server uses this header when calling the media-server internally)
+**What was built:**
+- Express server running on PORT=3001
+- Config loader (same pattern as api-server, imports from config/index.js)
+- Internal auth middleware checking x-media-secret header
+- Health check at GET /health
+- Stub modules for all media pipeline stages
+- /internal/switch-camera route (protected, placeholder response)
+- /whip route ready for Step 6
 
 **Dependencies needed:**
 ```json
@@ -379,14 +396,24 @@ apps/media-server/src/webhooks/index.js     (stub)
 
 ---
 
-### STEP 6 — WebRTC WHIP Ingest Endpoint
+### STEP 6 — WebRTC WHIP Ingest Endpoint ✅ COMPLETE
 
-**Status:** Not started
-**Files to modify:**
+**Status:** Done
+**Files modified:**
 ```
-apps/media-server/src/whip/index.js   (replace stub)
-apps/media-server/src/index.js        (wire up WHIP router)
+apps/media-server/src/whip/index.js   (replaced stub with full WHIP implementation)
 ```
+
+**What was built:**
+- POST /whip endpoint accepting SDP offer + X-Camera-Slot header
+- Server-side RTCPeerConnection creation using wrtc package
+- SDP answer returned with all ICE candidates bundled (no trickle ICE)
+- ICE gathering with 2-second timeout for slow networks
+- Camera connected/disconnected notifications to API server
+- DELETE /whip/:slot to disconnect a specific camera
+- GET /whip/connections for debugging active connections
+- activeConnections map exported for mixer (Step 9) to access later
+- Graceful handling: closes previous connection on same slot before accepting new one
 
 **What to build:**
 - WHIP (WebRTC-HTTP Ingest Protocol) endpoint at `POST /whip`
