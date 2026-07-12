@@ -1,0 +1,20 @@
+module.exports = {
+  RTCPeerConnection: jest.fn(() => ({
+    setRemoteDescription: jest.fn(),
+    createAnswer: jest.fn().mockResolvedValue({ type: 'answer', sdp: 'mock-sdp' }),
+    setLocalDescription: jest.fn(),
+    createOffer: jest.fn().mockResolvedValue({ type: 'offer', sdp: 'mock-sdp' }),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    close: jest.fn(),
+    iceGatheringState: 'complete',
+    signalingState: 'stable',
+    connectionState: 'connected',
+    addTrack: jest.fn(),
+    getSenders: jest.fn(() => []),
+  })),
+  MediaStream: jest.fn(),
+  MediaStreamTrack: jest.fn(),
+  RTCSessionDescription: jest.fn((desc) => desc),
+  RTCIceCandidate: jest.fn((candidate) => candidate),
+};
