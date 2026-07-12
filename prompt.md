@@ -391,7 +391,7 @@ Stores active refresh tokens for JWT auth.
 - Step 3: JWT auth system ✅
 - Step 4: Core REST routes (events, stream, chat, recordings) ✅
 
-### PHASE 2 — MEDIA ENGINE ✅ IN PROGRESS
+### PHASE 2 — MEDIA ENGINE ✅ COMPLETE
 - Step 5: Media server folder setup ✅
 - Step 6: WebRTC WHIP ingest endpoint ✅
 - Step 7: FFmpeg transcoding pipeline ✅
@@ -400,7 +400,7 @@ Stores active refresh tokens for JWT auth.
 - Step 10: AWS S3 recording upload ✅
 
 ### PHASE 3 — REAL-TIME LAYER
-- Step 11: WebSocket chat system
+- Step 11: WebSocket chat system ✅
 - Step 12: Stream status broadcast
 - Step 13: Viewer count tracking
 - Step 14: Camera heartbeat system
@@ -428,9 +428,9 @@ Stores active refresh tokens for JWT auth.
 
 ## CURRENT STATUS
 
-**Last completed step:** Step 10 — AWS S3 recording upload
-**Currently working on:** Step 11 — WebSocket chat system
-**Next action:** Wait for permission to begin Step 11
+**Last completed step:** Step 11 — WebSocket chat system
+**Currently working on:** Step 12 — Stream status broadcast
+**Next action:** Wait for permission to begin Step 12
 
 ---
 

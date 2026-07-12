@@ -660,13 +660,21 @@ Temp files deleted from /var/recordings/
 
 ---
 
-### STEP 11 — WebSocket Chat System
+### STEP 11 — WebSocket Chat System ✅ COMPLETE
 
-**Status:** Not started
-**Files to modify:**
+**Status:** Done
+**Files modified:**
 ```
-apps/api-server/src/websocket/index.js  (expand handleClientMessage)
+apps/api-server/src/websocket/index.js  (expanded handleClientMessage + keepalive)
 ```
+
+**What was built:**
+- Ping/pong keepalive (30s interval, 10s timeout) — drops dead connections
+- `studio.heartbeat` handling with ack response
+- `camera.heartbeat` handling with ack response
+- Unknown event type rejection with error response
+- Expanded comments explaining the chat flow architecture
+- Chat messages sent via HTTP POST (reliability), WebSocket used only for receiving broadcasts
 
 **What to build:**
 Expand the existing WebSocket server to handle chat messages fully.
