@@ -46,6 +46,20 @@ const env = {
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   },
+  mediaServer: {
+    url: process.env.MEDIA_SERVER_URL ?? 'http://localhost:3001',
+    secret: process.env.MEDIA_SERVER_SECRET ?? 'dev-secret',
+  },
+  s3: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? '',
+    region: process.env.AWS_REGION ?? 'eu-west-1',
+    bucket: process.env.AWS_S3_BUCKET ?? 'movement-recordings',
+  },
+  n8n: {
+    streamStartWebhook: process.env.N8N_STREAM_START_WEBHOOK ?? '',
+    streamEndWebhook: process.env.N8N_STREAM_END_WEBHOOK ?? '',
+  },
 };
 
 module.exports = { env };

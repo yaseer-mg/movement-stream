@@ -605,13 +605,26 @@ and body `{ camera: 'cam2' }`
 
 ---
 
-### STEP 10 — AWS S3 Recording Upload
+### STEP 10 — AWS S3 Recording Upload ✅ COMPLETE
 
-**Status:** Not started
-**Files to modify:**
+**Status:** Done
+**Files modified:**
 ```
-apps/media-server/src/recorder/index.js  (replace stub)
+apps/media-server/src/recorder/index.js      (replaced stub)
+apps/api-server/src/routes/recordings.js    (added internal endpoint + S3 deletion)
+apps/api-server/src/routes/stream.js        (hooked recorder into stream end)
+apps/api-server/src/config/env.js           (added S3 + media server config)
 ```
+
+**What was built:**
+- FFmpeg concat merges .ts segments into single .mp4 (no re-encoding — fast!)
+- S3 upload using @aws-sdk/client-s3 PutObjectCommand with streaming
+- S3 key format: recordings/{stream_id}/{date}_{title}.mp4
+- API server notified via POST /api/recordings/internal with all metadata
+- Duration extracted using ffprobe
+- Temp files cleaned up after upload
+- DELETE endpoint now deletes S3 files too
+- Stream end flow: start recording → stop transcoding → n8n webhook
 
 **What to build:**
 When the stream ends, FFmpeg has written a series of `.ts` segment files.

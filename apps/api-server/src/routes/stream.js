@@ -135,18 +135,33 @@ router.post('/end', requireAuth, requireSuperAdmin, async (req, res, next) => {
       data: { ended_at: status.ended_at },
     });
 
-    // Tell media server to stop all transcoding and clean up HLS
+    // Tell media server to start recording (merge segments + upload to S3)
+    // This must happen BEFORE cleanup, since it needs the .ts segments
+    try {
+      await fetch(`${env.mediaServer.url}/recorder/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-media-secret': env.mediaServer.secret,
+        },
+        body: JSON.stringify({
+          streamId: status.id,
+          eventId: current.event_id,
+          streamTitle: current.title,
+        }),
+      });
+    } catch {
+      console.log('Could not reach media server for recording');
+    }
+
+    // Tell media server to stop all transcoding (AFTER recording started)
     try {
       await fetch(`${env.mediaServer.url}/internal/mixer/stop-all`, {
         method: 'POST',
         headers: { 'x-media-secret': env.mediaServer.secret },
       });
-      await fetch(`${env.mediaServer.url}/packager/cleanup`, {
-        method: 'POST',
-        headers: { 'x-media-secret': env.mediaServer.secret },
-      });
     } catch {
-      console.log('Could not reach media server for stop-all/cleanup');
+      console.log('Could not reach media server for stop-all');
     }
 
     // Fire n8n webhook (non-blocking)

@@ -2,8 +2,43 @@ const { Router } = require('express');
 const { query, queryOne } = require('../db/pool');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { AppError } = require('../middleware/error-handler');
+const { env } = require('../config/env');
 
 const router = Router();
+
+// ─────────────────────────────────────────
+// POST /api/recordings/internal
+// Internal — called by media server when a recording is ready.
+// Protected by x-media-secret header (handled by media server auth).
+// ─────────────────────────────────────────
+router.post('/internal', async (req, res, next) => {
+  try {
+    // Verify the request comes from the media server
+    const mediaSecret = req.headers['x-media-secret'];
+    if (mediaSecret !== env.mediaServer.secret) {
+      throw new AppError('Unauthorized', 401, 'UNAUTHORIZED');
+    }
+
+    const { stream_id, event_id, title, file_url, s3_key, duration_secs, file_size_bytes } = req.body;
+
+    if (!stream_id || !file_url || !s3_key) {
+      throw new AppError('stream_id, file_url, and s3_key are required', 400, 'VALIDATION_ERROR');
+    }
+
+    const [recording] = await query(
+      `INSERT INTO recordings (stream_id, event_id, title, file_url, s3_key, duration_secs, file_size_bytes, processing_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ready')
+       RETURNING *`,
+      [stream_id, event_id || null, title || 'Untitled Recording', file_url, s3_key, duration_secs || 0, file_size_bytes || 0]
+    );
+
+    console.log(`Recording created: ${recording.id} (${title})`);
+
+    res.status(201).json({ success: true, data: { recording } });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // ─────────────────────────────────────────
 // GET /api/recordings
@@ -173,10 +208,31 @@ router.patch('/:id', requireAuth, requireAdmin, async (req, res, next) => {
 // ─────────────────────────────────────────
 router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
-    const existing = await queryOne('SELECT id FROM recordings WHERE id = $1', [req.params.id]);
+    const existing = await queryOne('SELECT id, s3_key FROM recordings WHERE id = $1', [req.params.id]);
 
     if (!existing) {
       throw new AppError('Recording not found', 404, 'NOT_FOUND');
+    }
+
+    // Delete from S3 if s3_key exists
+    if (existing.s3_key) {
+      try {
+        const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+        const s3 = new S3Client({
+          region: env.s3.region,
+          credentials: {
+            accessKeyId: env.s3.accessKeyId,
+            secretAccessKey: env.s3.secretAccessKey,
+          },
+        });
+        await s3.send(new DeleteObjectCommand({
+          Bucket: env.s3.bucket,
+          Key: existing.s3_key,
+        }));
+      } catch {
+        // S3 deletion is best-effort — log but don't fail
+        console.log(`Could not delete S3 file: ${existing.s3_key}`);
+      }
     }
 
     await query('DELETE FROM recordings WHERE id = $1', [req.params.id]);
