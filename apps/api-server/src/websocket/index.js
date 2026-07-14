@@ -1,12 +1,18 @@
 const { WebSocketServer, WebSocket } = require('ws');
+const { queryOne } = require('../db/pool');
 
 const clients = new Set();
 
 // ─────────────────────────────────────────
+// Viewer count tracking
+// ─────────────────────────────────────────
+let viewerCount = 0;
+
+// ─────────────────────────────────────────
 // Ping/Pong keepalive — drops dead connections
 // ─────────────────────────────────────────
-const PING_INTERVAL_MS = 30000; // ping every 30 seconds
-const PONG_TIMEOUT_MS = 10000;  // kill if no pong in 10 seconds
+const PING_INTERVAL_MS = 30000;
+const PONG_TIMEOUT_MS = 10000;
 
 function startKeepAlive(wss) {
   const interval = setInterval(() => {
@@ -22,6 +28,73 @@ function startKeepAlive(wss) {
   }, PING_INTERVAL_MS);
 
   wss.on('close', () => clearInterval(interval));
+}
+
+// ─────────────────────────────────────────
+// updateViewerCount()
+// Called whenever a client connects or disconnects.
+// Updates the DB and broadcasts to all clients.
+// ─────────────────────────────────────────
+async function updateViewerCount() {
+  const count = clients.size;
+
+  if (count === viewerCount) return; // no change
+  viewerCount = count;
+
+  try {
+    const status = await queryOne(
+      'SELECT id, peak_viewers FROM stream_status LIMIT 1'
+    );
+
+    if (!status) return;
+
+    const newPeak = count > (status.peak_viewers || 0) ? count : status.peak_viewers;
+
+    if (count > (status.peak_viewers || 0)) {
+      await queryOne(
+        'UPDATE stream_status SET viewer_count = $1, peak_viewers = $2, updated_at = now() WHERE id = $3',
+        [count, newPeak, status.id]
+      );
+    } else {
+      await queryOne(
+        'UPDATE stream_status SET viewer_count = $1, updated_at = now() WHERE id = $2',
+        [count, status.id]
+      );
+    }
+  } catch (err) {
+    console.error('Failed to update viewer count in DB:', err.message);
+  }
+
+  broadcast({
+    type: 'stream.viewers_update',
+    data: { viewer_count: count },
+  });
+}
+
+// ─────────────────────────────────────────
+// Analytics snapshot — every 60 seconds
+// Inserts a row into stream_analytics while live.
+// ─────────────────────────────────────────
+function startAnalyticsSnapshot() {
+  const ANALYTICS_INTERVAL_MS = 60000;
+
+  setInterval(async () => {
+    if (viewerCount === 0) return;
+
+    try {
+      const status = await queryOne('SELECT id, is_live FROM stream_status LIMIT 1');
+      if (!status || !status.is_live) return;
+
+      await queryOne(
+        'INSERT INTO stream_analytics (stream_id, viewer_count) VALUES ($1, $2)',
+        [status.id, viewerCount]
+      );
+
+      console.log(`Analytics snapshot: ${viewerCount} viewers`);
+    } catch (err) {
+      console.error('Analytics snapshot failed:', err.message);
+    }
+  }, ANALYTICS_INTERVAL_MS);
 }
 
 // ─────────────────────────────────────────
@@ -43,6 +116,9 @@ function initWebSocket(server) {
       data: { message: 'Connected to Movement Stream' },
     }));
 
+    // Update viewer count after adding the client
+    updateViewerCount();
+
     ws.on('pong', () => {
       ws.isAlive = true;
     });
@@ -62,6 +138,8 @@ function initWebSocket(server) {
     ws.on('close', () => {
       clients.delete(ws);
       console.log(`WebSocket client disconnected. Total: ${clients.size}`);
+      // Update viewer count after removing the client
+      updateViewerCount();
     });
 
     ws.on('error', (err) => {
@@ -71,6 +149,7 @@ function initWebSocket(server) {
   });
 
   startKeepAlive(wss);
+  startAnalyticsSnapshot();
   console.log('WebSocket server ready');
   return wss;
 }
@@ -90,14 +169,10 @@ function initWebSocket(server) {
 function handleClientMessage(ws, event) {
   switch (event.type) {
     case 'studio.heartbeat':
-      // Broadcaster confirms they are still live.
-      // Future: update broadcaster status in DB.
       ws.send(JSON.stringify({ type: 'studio.heartbeat.ack' }));
       break;
 
     case 'camera.heartbeat':
-      // Camera operator confirms their feed is alive.
-      // Future: update camera last_seen_at in DB.
       ws.send(JSON.stringify({ type: 'camera.heartbeat.ack' }));
       break;
 
@@ -113,9 +188,6 @@ function handleClientMessage(ws, event) {
 // ─────────────────────────────────────────
 // broadcast(event)
 // Sends a JSON event to ALL connected clients.
-// Used by REST routes after DB writes:
-//   - chat.js sends chat.message, chat.message_deleted
-//   - stream.js sends stream.live, stream.ended, etc.
 // ─────────────────────────────────────────
 function broadcast(event) {
   const message = JSON.stringify(event);
@@ -134,7 +206,6 @@ function broadcast(event) {
 // ─────────────────────────────────────────
 // getClientCount()
 // Returns the number of active WebSocket connections.
-// Used by viewer count tracking (Step 13).
 // ─────────────────────────────────────────
 function getClientCount() {
   return clients.size;

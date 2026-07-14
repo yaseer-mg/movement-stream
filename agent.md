@@ -710,13 +710,20 @@ The WebSocket is only used for RECEIVING/broadcasting — not for sending from c
 
 ---
 
-### STEP 12 — Stream Status Broadcast
+### STEP 12 — Stream Status Broadcast ✅ COMPLETE
 
-**Status:** Not started
-**Files to modify:**
+**Status:** Done — already implemented in Steps 4 and 9
+**Files modified:** (none — broadcasts were added when routes were built)
 ```
-apps/api-server/src/routes/stream.routes.js  (add broadcast calls)
+apps/api-server/src/routes/stream.js  (broadcasts already present)
 ```
+
+**What was built (during Steps 4 & 9):**
+- `POST /api/stream/start` → broadcasts `{ type: 'stream.live', data: { title, description, started_at } }`
+- `POST /api/stream/end` → broadcasts `{ type: 'stream.ended', data: { ended_at } }`
+- `PATCH /api/stream/camera` → broadcasts `{ type: 'stream.camera_switch', data: { active_camera } }`
+- `PATCH /api/stream/chat` (on) → broadcasts `{ type: 'stream.chat_enabled', data: {} }`
+- `PATCH /api/stream/chat` (off) → broadcasts `{ type: 'stream.chat_disabled', data: {} }`
 
 **What to build:**
 The stream routes already update the DB. Now wire them to also broadcast
@@ -735,14 +742,20 @@ Import `broadcast` from `../websocket/index.js` in the stream routes file.
 
 ---
 
-### STEP 13 — Viewer Count Tracking
+### STEP 13 — Viewer Count Tracking ✅ COMPLETE
 
-**Status:** Not started
-**Files to modify:**
+**Status:** Done
+**Files modified:**
 ```
-apps/api-server/src/websocket/index.js  (track connections per stream)
-apps/api-server/src/routes/stream.routes.js (viewer count endpoint)
+apps/api-server/src/websocket/index.js  (viewer count + analytics)
 ```
+
+**What was built:**
+- `viewerCount` in-memory variable tracks current connections
+- On connect: increment count → update DB → broadcast `stream.viewers_update`
+- On disconnect: decrement count → update DB → broadcast `stream.viewers_update`
+- Peak viewer tracking: if new count > peak_viewers, updates peak_viewers too
+- Analytics snapshot: every 60 seconds while live, INSERTs into stream_analytics
 
 **What to build:**
 Track how many WebSocket clients are connected (= approximate viewer count).
