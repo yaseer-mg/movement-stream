@@ -788,13 +788,19 @@ setInterval(async () => {
 
 ---
 
-### STEP 14 — Camera Heartbeat System
+### STEP 14 — Camera Heartbeat System ✅ COMPLETE
 
-**Status:** Not started
-**Files to modify:**
+**Status:** Done
+**Files modified:**
 ```
-apps/api-server/src/websocket/index.js  (handle camera.heartbeat)
+apps/api-server/src/websocket/index.js  (heartbeat handler + checker)
 ```
+
+**What was built:**
+- `camera.heartbeat` handler updates `cameras.is_connected=true` and `cameras.last_seen_at=now()` in DB
+- Heartbeat checker runs every 10 seconds — finds cameras with `last_seen_at` older than 10 seconds
+- Stale cameras marked `is_connected=false` and `camera.disconnected` broadcast sent
+- Only valid slots (cam1/cam2/cam3) are accepted
 
 **What to build:**
 Camera operators send a heartbeat every 5 seconds from their browser.

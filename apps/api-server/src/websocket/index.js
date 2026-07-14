@@ -1,5 +1,5 @@
 const { WebSocketServer, WebSocket } = require('ws');
-const { queryOne } = require('../db/pool');
+const { query, queryOne } = require('../db/pool');
 
 const clients = new Set();
 
@@ -98,6 +98,59 @@ function startAnalyticsSnapshot() {
 }
 
 // ─────────────────────────────────────────
+// Camera heartbeat handler
+// Called when a camera operator sends:
+// { type: 'camera.heartbeat', data: { slot: 'cam1' } }
+// Updates the camera's last_seen_at in the DB.
+// ─────────────────────────────────────────
+async function handleCameraHeartbeat(slot) {
+  const validSlots = ['cam1', 'cam2', 'cam3'];
+  if (!validSlots.includes(slot)) return;
+
+  try {
+    await queryOne(
+      "UPDATE cameras SET is_connected = true, last_seen_at = now() WHERE slot = $1",
+      [slot]
+    );
+  } catch (err) {
+    console.error(`Failed to update heartbeat for ${slot}:`, err.message);
+  }
+}
+
+// ─────────────────────────────────────────
+// Camera heartbeat checker — runs every 10 seconds
+// If a camera hasn't sent a heartbeat in 10 seconds,
+// mark it as disconnected and broadcast the event.
+// ─────────────────────────────────────────
+function startHeartbeatChecker() {
+  const CHECK_INTERVAL_MS = 10000;
+
+  setInterval(async () => {
+    try {
+      const staleCameras = await query(
+        "SELECT slot FROM cameras WHERE last_seen_at < now() - interval '10 seconds' AND is_connected = true"
+      );
+
+      for (const cam of staleCameras) {
+        await queryOne(
+          "UPDATE cameras SET is_connected = false WHERE slot = $1",
+          [cam.slot]
+        );
+
+        broadcast({
+          type: 'camera.disconnected',
+          data: { slot: cam.slot },
+        });
+
+        console.log(`Camera ${cam.slot} marked disconnected (no heartbeat)`);
+      }
+    } catch (err) {
+      console.error('Heartbeat checker failed:', err.message);
+    }
+  }, CHECK_INTERVAL_MS);
+}
+
+// ─────────────────────────────────────────
 // initWebSocket(server)
 // Creates the WebSocket server, attaches to
 // the same HTTP server as Express.
@@ -150,6 +203,7 @@ function initWebSocket(server) {
 
   startKeepAlive(wss);
   startAnalyticsSnapshot();
+  startHeartbeatChecker();
   console.log('WebSocket server ready');
   return wss;
 }
@@ -173,6 +227,7 @@ function handleClientMessage(ws, event) {
       break;
 
     case 'camera.heartbeat':
+      handleCameraHeartbeat(event.data?.slot);
       ws.send(JSON.stringify({ type: 'camera.heartbeat.ack' }));
       break;
 

@@ -403,6 +403,7 @@ Stores active refresh tokens for JWT auth.
 - Step 11: WebSocket chat system ✅
 - Step 12: Stream status broadcast ✅
 - Step 13: Viewer count tracking ✅
+- Step 14: Camera heartbeat system ✅
 - Step 12: Stream status broadcast
 - Step 13: Viewer count tracking
 - Step 14: Camera heartbeat system
@@ -430,9 +431,9 @@ Stores active refresh tokens for JWT auth.
 
 ## CURRENT STATUS
 
-**Last completed step:** Step 13 — Viewer count tracking
-**Currently working on:** Step 14 — Camera heartbeat system
-**Next action:** Wait for permission to begin Step 14
+**Last completed step:** Step 14 — Camera heartbeat system
+**Currently working on:** Phase 4 — Frontend (Step 15: React app setup)
+**Next action:** Wait for permission to begin Step 15
 
 ---
 
