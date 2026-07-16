@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-green: #1B5E20;
+  --color-brand-green-light: #2E7D32;
+  --color-brand-green-dark: #0D3B11;
+  --color-brand-green-50: #E8F5E9;
+  --color-brand-green-100: #C8E6C9;
+  --color-brand-green-200: #A5D6A7;
+  --color-brand-green-300: #81C784;
+  --color-brand-green-400: #66BB6A;
+  --color-brand-green-500: #4CAF50;
+  --color-brand-green-600: #43A047;
+  --color-brand-green-700: #388E3C;
+  --color-brand-green-800: #2E7D32;
+  --color-brand-green-900: #1B5E20;
+
+  --color-brand-gold: #F9A825;
+  --color-brand-gold-light: #FBC02D;
+  --color-brand-gold-dark: #F57F17;
+
+  --color-brand-dark: #0A0A0A;
+  --color-brand-dark-lighter: #141414;
+  --color-brand-dark-card: #1A1A1A;
+  --color-brand-dark-border: #2A2A2A;
+
+  --color-brand-light: #F5F5F5;
+  --color-brand-light-dim: #B0B0B0;
+  --color-brand-light-muted: #808080;
+
+  --color-brand-red: #D32F2F;
+  --color-brand-red-light: #EF5350;
+
+  --color-brand-surface: #1E1E1E;
+  --color-brand-surface-hover: #252525;
+
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  --animate-pulse-live: pulse-live 1.5s ease-in-out infinite;
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-up: slide-up 0.3s ease-out;
+}
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-brand-dark);
+  color: var(--color-brand-light);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-brand-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-brand-dark-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-light-muted);
+}
