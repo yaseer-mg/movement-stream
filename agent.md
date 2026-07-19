@@ -914,79 +914,52 @@ Protected routes (must be logged in):
 
 ---
 
-### STEP 16 — API Service Layer + Auth Context
+### STEP 16 — API Service Layer + Auth Context ✅ COMPLETE
 
-**Status:** Not started
-**Files to build:**
+**Status:** Done
+**Files created:**
 ```
-src/services/api.js           Axios instance with base URL + auth header
-src/services/auth.service.js  login, register, logout, refresh, me
-src/services/events.service.js getAllEvents, getEvent, createEvent, updateEvent, deleteEvent
-src/services/stream.service.js getStatus, startStream, endStream, switchCamera, toggleChat
-src/services/chat.service.js  getHistory, sendMessage, deleteMessage
-src/context/AuthContext.jsx   global auth state + login/logout functions
-src/store/index.js            Zustand store for stream + chat state
-src/hooks/useAuth.js          hook that reads from AuthContext
+src/services/api.js                Axios instance with interceptors
+src/services/auth.service.js       login, register, logout, refresh, me, createStaff
+src/services/events.service.js     CRUD operations for events
+src/services/stream.service.js     stream control operations
+src/services/chat.service.js       fetch history, send, delete messages
+src/services/recordings.service.js CRUD for recordings
+src/context/AuthContext.jsx        AuthProvider + useAuthContext
+src/store/index.js                 Zustand stores (streamStore + chatStore)
+src/hooks/useAuth.js               hook wrapper for AuthContext
+src/main.jsx                        wrapped with AuthProvider
 ```
 
-**api.js (Axios instance):**
-- Base URL from env: `VITE_API_URL=http://localhost:4000`
-- Automatically attaches `Authorization: Bearer <token>` to every request
-- Interceptor: if response is 401, try `/auth/refresh` automatically, then retry
-- If refresh also fails → logout user and redirect to /login
-
-**Zustand store shape:**
-```javascript
-// streamStore
-{
-  isLive: false,
-  title: null,
-  activeCamera: 'cam1',
-  viewerCount: 0,
-  chatEnabled: true,
-  // actions:
-  setStreamStatus: (status) => {},
-}
-
-// chatStore
-{
-  messages: [],
-  // actions:
-  addMessage: (msg) => {},
-  deleteMessage: (id) => {},
-  clearMessages: () => {},
-}
-
-// authStore
-{
-  user: null,
-  accessToken: null,
-  // actions:
-  setAuth: (user, token) => {},
-  clearAuth: () => {},
-}
-```
+**What was built:**
+- Axios instance with base URL from env, automatic auth header, and 401 interceptor that auto-refreshes
+- All service modules matching the backend API responses (success/data structure)
+- AuthContext with login/register/logout/refreshUser and computed isAuthenticated/isSuperAdmin/isAdmin
+- Zustand stream store: isLive, title, description, activeCamera, viewerCount, peakViewers, chatEnabled, setStreamStatus
+- Zustand chat store: messages[], addMessage, deleteMessage, setMessages, clearMessages
+- App wrapped with AuthProvider in main.jsx
 
 ---
 
 ### STEP 17 — Public Homepage
 
-**Status:** Not started
-**Files to build:**
+**Status:** Done
+**Files created:**
 ```
-src/pages/public/Home.jsx
-src/components/ui/LiveBanner.jsx    shows "● LIVE NOW" when stream is live
-src/components/events/EventCard.jsx card component for event display
-src/components/ui/Navbar.jsx        top navigation
-src/components/ui/Footer.jsx        footer
+src/components/ui/Navbar.jsx        Responsive nav with auth-aware buttons
+src/components/ui/Footer.jsx        Three-column footer with quick links
+src/components/ui/LiveBanner.jsx    Pulsing red dot + Watch button, WebSocket-connected
+src/components/events/EventCard.jsx Card with thumbnail, status badge, date, location
+src/pages/public/Home.jsx           Replaced stub with full homepage
 ```
 
-**Homepage sections:**
-1. Hero section with movement name and tagline
-2. LIVE BANNER — shows when stream is live, links to /watch
-3. Featured upcoming events (max 3, from `?featured=true&status=upcoming`)
-4. "Watch Live" call-to-action button
-5. About the movement section (static text)
+**What was built:**
+- Navbar with links (Home, Watch, Events, Recordings), Sign In/Sign Out + Admin button (role-aware)
+- Footer with three columns (brand, links, contact)
+- LiveBanner with WS connection listening for stream.live/stream.ended/stream.viewers_update, pulsing red dot, viewer count
+- EventCard with status badges (LIVE/UPCOMING/ENDED/CANCELLED), date, time, location, thumbnail
+- Homepage with hero section, LiveBanner, up to 3 featured upcoming events, and an "About Us" section
+- Dark theme throughout using Tailwind custom color tokens
 
 **Live banner behaviour:**
 - Connects to WebSocket on mount

@@ -409,8 +409,8 @@ Stores active refresh tokens for JWT auth.
 - Step 14: Camera heartbeat system
 
 ### PHASE 4 — FRONTEND
-- Step 15: React app setup (Vite + Tailwind + React Router + Zustand)
-- Step 16: API service layer + auth context
+- Step 15: React app setup (Vite + Tailwind + React Router + Zustand) ✅
+- Step 16: API service layer + auth context + Zustand store ✅
 - Step 17: Public homepage
 - Step 18: Live watch page + HLS.js player
 - Step 19: Events schedule page
@@ -431,9 +431,9 @@ Stores active refresh tokens for JWT auth.
 
 ## CURRENT STATUS
 
-**Last completed step:** Step 14 — Camera heartbeat system
-**Currently working on:** Phase 4 — Frontend (Step 15: React app setup)
-**Next action:** Wait for permission to begin Step 15
+**Last completed step:** Step 17 — Public homepage (hero, live banner, featured events, about section)
+**Currently working on:** Phase 4 — Frontend (Step 18: Live watch page + HLS.js player)
+**Next action:** Wait for permission to begin Step 18
 
 ---
 
