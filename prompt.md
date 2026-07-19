@@ -431,9 +431,9 @@ Stores active refresh tokens for JWT auth.
 
 ## CURRENT STATUS
 
-**Last completed step:** Step 17 — Public homepage (hero, live banner, featured events, about section)
-**Currently working on:** Phase 4 — Frontend (Step 18: Live watch page + HLS.js player)
-**Next action:** Wait for permission to begin Step 18
+**Last completed step:** Step 18 — Live watch page + HLS.js player + chat UI
+**Currently working on:** Phase 4 — Frontend (Step 19: Events schedule page)
+**Next action:** Wait for permission to begin Step 19
 
 ---
 

@@ -971,49 +971,29 @@ src/pages/public/Home.jsx           Replaced stub with full homepage
 
 ### STEP 18 — Live Watch Page + HLS.js Player
 
-**Status:** Not started
-**Files to build:**
+**Status:** Done
+**Files created:**
 ```
-src/pages/public/Watch.jsx
-src/components/player/VideoPlayer.jsx   HLS.js wrapper
-src/components/player/QualitySelector.jsx  720p/480p/240p buttons
-src/components/player/ViewerCount.jsx
-src/components/chat/ChatPanel.jsx       right side chat panel
-src/components/chat/ChatMessage.jsx     single message component
-src/components/chat/ChatInput.jsx       message input box
-src/hooks/useStream.js                  WebSocket stream status
-src/hooks/useChat.js                    WebSocket chat messages
-```
-
-**Watch page layout:**
-```
-┌─────────────────────────────────────────────┐
-│  NAVBAR                                     │
-├───────────────────────────┬─────────────────┤
-│                           │  LIVE CHAT      │
-│   VIDEO PLAYER            │  ─────────────  │
-│   (16:9 ratio)            │  [messages...]  │
-│                           │                 │
-│   [Quality] [Fullscreen]  │  [Type here...] │
-│                           │  [SEND]         │
-├───────────────────────────┴─────────────────┤
-│  Stream title | Viewer count | Duration     │
-└─────────────────────────────────────────────┘
+src/hooks/useStream.js           WebSocket + REST stream status hook
+src/hooks/useChat.js             WebSocket + REST chat hook
+src/components/player/VideoPlayer.jsx    HLS.js wrapper with fullscreen
+src/components/player/QualitySelector.jsx  1080p/720p/480p/240p/Auto
+src/components/player/ViewerCount.jsx   eye icon with count
+src/components/chat/ChatPanel.jsx       sidebar with auto-scroll
+src/components/chat/ChatMessage.jsx     display name, timestamp, delete (admin)
+src/components/chat/ChatInput.jsx       text input with send button
+src/pages/public/Watch.jsx              replaced stub with full page
 ```
 
-**HLS.js player behaviour:**
-- Load `http://media-server/hls/master.m3u8`
-- Auto-select quality based on viewer's connection speed
-- Show loading spinner while buffering
-- Show "Stream has ended" message + link to recordings when `stream.ended` received
-- Show "Stream not live yet" if visiting /watch when nothing is live
-
-**Chat behaviour:**
-- Connects to WebSocket and listens for `chat.message` events
-- Chat input hidden/disabled when `chat_enabled = false`
-- Shows "Chat is currently disabled" message when disabled
-- Messages auto-scroll to bottom
-- Guests can see chat but cannot send messages (must log in)
+**What was built:**
+- VideoPlayer with HLS.js, error recovery, fullscreen toggle, auto-play
+- QualitySelector with 5 resolution options
+- ViewerCount with SVG icon
+- ChatPanel with message list, auto-scroll, ChatInput, role-aware delete
+- ChatMessage with formatted timestamp
+- ChatInput with disabled state
+- Watch page: HLS player on left, chat sidebar on right, stream info bar below
+- Handles: not live, live, and ended states
 
 ---
 
