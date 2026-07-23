@@ -1054,40 +1054,23 @@ src/pages/admin/Dashboard.jsx        Full dashboard replacing stub
 
 ### STEP 22 — Broadcast Studio UI
 
-**Status:** Not started
-**Files to build:**
+**Status:** Done
+**Files created:**
 ```
-src/pages/admin/Studio.jsx
-src/components/studio/CameraPreview.jsx    shows local camera feed
-src/components/studio/StreamControls.jsx   go live / end stream controls
-src/components/studio/AudioMeter.jsx       shows microphone level
-src/hooks/useWebRTC.js                     handles camera/mic access + WHIP connection
-```
-
-**Studio page layout:**
-```
-┌─────────────────────────────────────────────────┐
-│  BROADCAST STUDIO                               │
-├──────────────────────────┬──────────────────────┤
-│  CAMERA PREVIEW          │  STREAM CONTROLS     │
-│  (live mirror from cam)  │  Title: [_________]  │
-│                          │  Description: [____]  │
-│                          │  Event: [dropdown]    │
-│                          │                      │
-│  AUDIO METER             │  [● GO LIVE]          │
-│  ████████░░              │  [■ END STREAM]       │
-│                          │  ─────────────────── │
-│  Source:                 │  Status: ● LIVE       │
-│  [Camera][Screen][Both]  │  Duration: 00:23:14   │
-│                          │  Viewers: 847         │
-└──────────────────────────┴──────────────────────┘
+src/hooks/useWebRTC.js               Camera/mic access + WHIP connection
+src/components/studio/CameraPreview.jsx  Local camera/screen feed display
+src/components/studio/StreamControls.jsx Title, description, event selector, go live/end buttons
+src/components/studio/AudioMeter.jsx     12-bar microphone level meter
+src/pages/admin/Studio.jsx              Full broadcast studio page replacing stub
+apps/web/.env.example + .env            Added VITE_MEDIA_SERVER_URL
 ```
 
-**useWebRTC.js behaviour:**
-- `startCamera()` → calls `navigator.mediaDevices.getUserMedia()`
-- `startScreenShare()` → calls `navigator.mediaDevices.getDisplayMedia()`
-- `goLive(slot)` → creates RTCPeerConnection, sends SDP offer to `/whip` on media server
-- `endStream()` → closes RTCPeerConnection, calls POST /api/stream/end
+**What was built:**
+- useWebRTC: startCamera (getUserMedia 720p+audio), startScreenShare (getDisplayMedia), goLive (RTCPeerConnection → SDP offer → POST /whip → set answer), endLive (close PC + call API end), audio meter via AnalyserNode, auto-cleanup on unmount
+- CameraPreview: mirrored video element for camera, placeholder when no stream
+- StreamControls: title, description, event dropdown (loaded from API), Go Live / End Stream buttons, live status with duration timer and viewer count
+- AudioMeter: 12-bar frequency visualizer with green/red thresholds and percentage
+- Studio page: left column (preview + source buttons + audio meter), right column (controls panel), error banner with dismiss
 
 ---
 

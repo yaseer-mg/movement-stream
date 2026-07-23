@@ -431,9 +431,9 @@ Stores active refresh tokens for JWT auth.
 
 ## CURRENT STATUS
 
-**Last completed step:** Step 21 — Admin dashboard + AdminLayout + StatCard
-**Currently working on:** Phase 4 — Frontend (Step 22: Broadcast studio UI)
-**Next action:** Wait for permission to begin Step 22
+**Last completed step:** Step 22 — Broadcast studio UI (camera preview, WebRTC, WHIP, audio meter)
+**Currently working on:** Phase 4 — Frontend (Step 23: Multi-camera mixer UI)
+**Next action:** Wait for permission to begin Step 23
 
 ---
 
