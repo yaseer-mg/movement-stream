@@ -999,26 +999,20 @@ src/pages/public/Watch.jsx              replaced stub with full page
 
 ### STEP 19 — Events Schedule Page
 
-**Status:** Not started
-**Files to build:**
+**Status:** Done
+**Files created:**
 ```
-src/pages/public/Events.jsx
-src/pages/public/EventDetail.jsx
-src/components/events/EventCard.jsx     (may already exist from Step 17)
-src/components/events/EventBadge.jsx    status badge (LIVE/UPCOMING/ENDED)
+src/pages/public/Events.jsx       Filter tabs + grid of EventCards
+src/pages/public/EventDetail.jsx  Full event detail with countdown + action buttons
 ```
 
-**Events page:**
-- Tabs: All | Upcoming | Live | Ended
-- Grid of EventCard components
-- Each card shows: thumbnail, title, location, date/time, status badge
-- Clicking a card goes to /events/:id
-
-**EventDetail page:**
-- Full event information
-- If status is 'live' → show "Watch Now" button → /watch
-- If status is 'ended' → show "Watch Recording" button → /recordings/:id
-- If status is 'upcoming' → show countdown timer to start time
+**What was built:**
+- Events page with tab filter (All/Upcoming/Live/Ended), loading spinner, empty state
+- EventCard grid reused from Step 17
+- EventDetail page: thumbnail, status badge, title, date/time/location, description
+- Live countdown timer for upcoming events (days/hours/minutes/seconds)
+- Contextual action buttons: "Watch Now" (live), "Watch Recording" (ended), "Add to Calendar" (upcoming)
+- Back navigation, 404 handling, loading state
 
 ---
 
