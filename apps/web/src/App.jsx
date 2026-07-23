@@ -5,6 +5,7 @@ import Watch from './pages/public/Watch';
 import Events from './pages/public/Events';
 import EventDetail from './pages/public/EventDetail';
 import Recordings from './pages/public/Recordings';
+import RecordingDetail from './pages/public/RecordingDetail';
 import Login from './pages/public/Login';
 
 import Dashboard from './pages/admin/Dashboard';
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/events" element={<Events />} />
         <Route path="/events/:id" element={<EventDetail />} />
         <Route path="/recordings" element={<Recordings />} />
+        <Route path="/recordings/:id" element={<RecordingDetail />} />
         <Route path="/login" element={<Login />} />
 
         {/* Admin routes */}

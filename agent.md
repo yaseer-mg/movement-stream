@@ -1018,23 +1018,20 @@ src/pages/public/EventDetail.jsx  Full event detail with countdown + action butt
 
 ### STEP 20 — Recordings Archive Page
 
-**Status:** Not started
-**Files to build:**
+**Status:** Done
+**Files created:**
 ```
-src/pages/public/Recordings.jsx
-src/components/player/RecordingPlayer.jsx   HLS.js player for VOD (slightly different config)
+src/components/player/RecordingPlayer.jsx  Seekable VOD player with progress bar
+src/pages/public/Recordings.jsx            Grid of recording cards, sorted newest first
+src/pages/public/RecordingDetail.jsx       Watch a single recording with metadata
+src/App.jsx                                Added /recordings/:id route + RecordingDetail import
 ```
 
-**Recordings page:**
-- Grid of recording cards sorted newest first
-- Each card: thumbnail, title, duration, date
-- Clicking goes to /recordings/:id
-- /recordings/:id loads the mp4 from S3 URL in a video player
-
-**RecordingPlayer difference from live player:**
-- No live edge syncing
-- Seekable (can jump to any point)
-- Shows duration progress bar
+**What was built:**
+- RecordingPlayer: HTML5 video player for mp4 with play/pause, seekable progress bar, time display, fullscreen
+- Recordings page: grid of recording cards with thumbnail, title, duration, date; loading spinner, empty state
+- RecordingDetail: full recording view with player, title, description, duration, size, recorded date, linked event
+- Route /recordings/:id added to App.jsx
 
 ---
 
