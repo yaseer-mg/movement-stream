@@ -1037,31 +1037,18 @@ src/App.jsx                                Added /recordings/:id route + Recordi
 
 ### STEP 21 — Admin Dashboard
 
-**Status:** Not started
-**Files to build:**
+**Status:** Done
+**Files created:**
 ```
-src/pages/admin/Dashboard.jsx
-src/components/ui/AdminLayout.jsx    sidebar + top bar wrapper for all admin pages
-src/components/ui/StatCard.jsx       displays a single stat (viewers, duration etc)
+src/components/ui/AdminLayout.jsx    Sidebar + top bar wrapper for all admin pages
+src/components/ui/StatCard.jsx       Stat display card with icon
+src/pages/admin/Dashboard.jsx        Full dashboard replacing stub
 ```
 
-**Dashboard sections:**
-1. Stream status panel (LIVE/OFFLINE, current title, duration)
-2. Quick actions: [Go Live] [End Stream] [Switch Camera] [Toggle Chat]
-3. Stats: current viewers, peak viewers, total recordings
-4. Upcoming events list (next 5)
-5. Recent recordings list (last 5)
-6. Camera status panel — shows cam1/cam2/cam3 connected/disconnected
-
-**Admin sidebar navigation:**
-```
-📊 Dashboard
-🎥 Studio (go live)
-🎛️ Camera Mixer
-📅 Events
-💬 Chat Moderation
-🎬 Recordings
-```
+**What was built:**
+- AdminLayout: responsive sidebar (hidden on mobile), SVG nav icons, active route highlighting, logout button, user role display, mobile top bar
+- StatCard: reusable card with label, value, icon, configurable color classes
+- Dashboard: LIVE/OFFLINE status indicator with animated pulse, live duration timer, quick action buttons (Go Live / End Stream / Switch Camera / Toggle Chat), 3 stat cards (current viewers, peak viewers, total recordings), camera status panel (cam1/cam2/cam3), upcoming events list (next 5), recent recordings list (last 5), links to full admin pages
 
 ---
 
