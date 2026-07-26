@@ -230,7 +230,7 @@ POST   /api/stream/start     Start the live stream.
                              UPDATE stream_status SET is_live=true, title=..., started_at=now().
                              Also UPDATE linked event status to 'live' if event_id provided.
                              After DB update: broadcast WebSocket event { type: 'stream.live' }.
-                             After broadcast: fire n8n webhook (non-blocking, don't fail if n8n is down).
+                             After broadcast: fire social media service call (non-blocking, don't fail if social APIs are down).
 
 POST   /api/stream/end       End the live stream.
                              requireAuth + requireSuperAdmin.
@@ -238,7 +238,7 @@ POST   /api/stream/end       End the live stream.
                              UPDATE stream_status SET is_live=false, ended_at=now().
                              Also UPDATE linked event status to 'ended' if event_id exists.
                              Broadcast { type: 'stream.ended' }.
-                             Fire n8n end webhook (non-blocking).
+                             Fire social media end call (non-blocking).
 
 PATCH  /api/stream/camera    Switch the active camera.
                              requireAuth + requireAdmin.
@@ -624,7 +624,7 @@ apps/api-server/src/config/env.js           (added S3 + media server config)
 - Duration extracted using ffprobe
 - Temp files cleaned up after upload
 - DELETE endpoint now deletes S3 files too
-- Stream end flow: start recording → stop transcoding → n8n webhook
+- Stream end flow: start recording → stop transcoding → social media service call
 
 **What to build:**
 When the stream ends, FFmpeg has written a series of `.ts` segment files.
@@ -1074,9 +1074,9 @@ apps/web/.env.example + .env            Added VITE_MEDIA_SERVER_URL
 
 ---
 
-### STEP 23 — Multi-Camera Mixer UI
+### STEP 23 — Multi-Camera Mixer UI ✅
 
-**Status:** Not started
+**Status:** Completed
 **Files to build:**
 ```
 src/pages/admin/CameraMixer.jsx
@@ -1126,44 +1126,83 @@ src/components/chat/ChatPanel.jsx  (may already exist from Step 18)
 
 ---
 
-### STEP 25 — n8n Social Media Workflows
+### STEP 25 — Social Media Services + Scheduler
 
 **Status:** Not started
 **Files to create:**
 ```
-n8n/workflows/on-stream-start.json
-n8n/workflows/on-stream-end.json
-n8n/workflows/event-reminder.json
+apps/api-server/src/services/social.service.js
+apps/api-server/src/services/scheduler.service.js
+apps/api-server/src/config/env.js          (update — remove n8n vars, add social vars)
+apps/api-server/src/routes/stream.routes.js (update — call social.service.js fire-and-forget)
 ```
 
-**on-stream-start workflow:**
+**npm package to install:**
 ```
-Trigger: Webhook (POST from API server when stream starts)
-Actions:
-  1. Post to Facebook Page: "🔴 We are LIVE now! [title] — Watch: [stream URL]"
-  2. Post to X/Twitter: "🔴 LIVE: [title] Join us now [stream URL]"
+node-cron
+```
+
+**social.service.js — what it does:**
+```
+Exports: notifyStreamStart(streamTitle, streamUrl), notifyStreamEnd(recordingUrl)
+
+notifyStreamStart:
+  1. Post to Facebook Page: "We are LIVE now! [title] — Watch: [stream URL]"
+     Uses Facebook Graph API: POST https://graph.facebook.com/v18.0/{PAGE_ID}/feed
+  2. Post to X/Twitter: "LIVE: [title] Join us now [stream URL]"
+     Uses Twitter API v2: POST https://api.twitter.com/2/tweets
   3. Send WhatsApp broadcast via Meta Cloud API to subscribers
-  4. Send email (optional)
-```
+     Uses WhatsApp Business API: POST https://graph.facebook.com/{WHATSAPP_API_VERSION}/{PHONE_NUMBER_ID}/messages
+  4. Each API call is fire-and-forget — catch errors, log them, never throw
 
-**on-stream-end workflow:**
-```
-Trigger: Webhook (POST from API server when stream ends)
-Actions:
+notifyStreamEnd:
   1. Post recording link to all platforms
   2. "The stream has ended. Watch the recording: [recording URL]"
+  3. Same fire-and-forget pattern
 ```
 
-**event-reminder workflow:**
+**scheduler.service.js — what it does:**
 ```
-Trigger: Schedule (runs daily at 8am)
-Actions:
-  1. Query API: GET /api/events?status=upcoming
-  2. Find events starting in next 24 hours
-  3. Post reminder to all social platforms
+Exports: startScheduler(), stopScheduler()
+
+Uses node-cron to schedule tasks:
+  - Event reminders: runs daily at 8am (configurable via CRON_EVENT_REMINDER env var)
+    1. Query API: GET /api/events?status=upcoming
+    2. Find events starting in next 24 hours
+    3. Post reminder to all social platforms via social.service.js
+
+  - Additional cron jobs can be added later as needed
 ```
 
-**NOTE:** n8n workflows are JSON exports. The agent should provide the JSON that can be imported into n8n directly. Ask owner for their social media API credentials before building these.
+**How stream routes integrate (fire-and-forget pattern):**
+```
+POST /api/stream/start  → after DB update + WebSocket broadcast:
+  socialService.notifyStreamStart(title, streamUrl)
+    .catch(err => logger.warn('Social notify failed', err))   // NEVER await, NEVER let it fail the request
+
+POST /api/stream/end  → after DB update + WebSocket broadcast:
+  socialService.notifyStreamEnd(recordingUrl)
+    .catch(err => logger.warn('Social notify failed', err))   // NEVER await, NEVER let it fail the request
+```
+
+**IMPORTANT RULE:** Social media service calls MUST be fire-and-forget. Never await them. Never let a social media API failure block or fail the stream start/end response. The user experience must not depend on third-party social APIs being available.
+
+**Environment variables (api-server/.env):**
+```
+STREAM_PUBLIC_URL=http://localhost:5173
+FACEBOOK_PAGE_ID=<your page id>
+FACEBOOK_ACCESS_TOKEN=<your page access token>
+WHATSAPP_PHONE_NUMBER_ID=<your phone number id>
+WHATSAPP_ACCESS_TOKEN=<your access token>
+WHATSAPP_API_VERSION=v17.0
+TWITTER_API_KEY=<your api key>
+TWITTER_API_SECRET=<your api secret>
+TWITTER_ACCESS_TOKEN=<your access token>
+TWITTER_ACCESS_SECRET=<your access secret>
+CRON_EVENT_REMINDER=0 8 * * *
+```
+
+**NOTE:** Ask owner for their social media API credentials before building. Each social platform requires separate API key setup.
 
 ---
 
@@ -1354,3 +1393,4 @@ MOBILE TESTS
 11. ❌ Throw plain `new Error()` — always use `new AppError()`
 12. ❌ Skip writing test curl commands after each step
 13. ❌ Start the next step without explicit permission from the owner
+14. ❌ Await social media service calls in route handlers — always fire-and-forget with .catch()

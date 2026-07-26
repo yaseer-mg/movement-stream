@@ -83,7 +83,7 @@ If you are unsure about any requirement, business logic, or decision, STOP and a
 4. **Viewers worldwide** watch the stream in a browser — no app download needed
 5. **Live chat** runs alongside the stream — admin can turn it on or off
 6. **Stream is automatically recorded** and saved to AWS S3
-7. **Social media posts** are automatically sent when stream starts (Facebook, WhatsApp, X/Twitter) via n8n
+7. **Social media posts** are automatically sent when stream starts (Facebook, WhatsApp, X/Twitter) via direct backend services
 8. **Upcoming events** are shown on a public schedule page
 9. **Past recordings** are available in a public archive
 
@@ -105,7 +105,8 @@ If you are unsure about any requirement, business logic, or decision, STOP and a
 | Video Player | HLS.js | Custom UI built on top |
 | Recording Storage | AWS S3 | mp4 files |
 | Real-time | WebSocket (ws library) | Chat + stream status |
-| Social Automation | n8n | Webhooks trigger social posts |
+| Social Automation | `social.service.js` + `scheduler.service.js` | Direct API calls to Facebook, WhatsApp, X/Twitter |
+| Task Scheduler | node-cron | Cron jobs + delayed task execution |
 | Deployment | Docker Compose | On a Linux VPS |
 | Web Server | Nginx | HLS delivery + reverse proxy |
 
@@ -188,6 +189,9 @@ movement-stream/
 │   │   │   │   ├── stream.routes.js
 │   │   │   │   ├── chat.routes.js
 │   │   │   │   └── recordings.routes.js
+│   │   │   ├── services/
+│   │   │   │   ├── social.service.js      # Facebook/WhatsApp/Twitter posting
+│   │   │   │   └── scheduler.service.js   # Cron jobs + delayed tasks (node-cron)
 │   │   │   ├── websocket/
 │   │   │   │   └── index.js
 │   │   │   └── index.js
@@ -210,7 +214,7 @@ movement-stream/
 │       │   ├── recorder/
 │       │   │   └── index.js           # S3 upload after stream ends
 │       │   ├── webhooks/
-│       │   │   └── index.js           # Notifies API server + n8n
+│       │   │   └── index.js           # Notifies API server
 │       │   └── index.js
 │       ├── .env.example
 │       ├── .gitignore
@@ -229,12 +233,6 @@ movement-stream/
 │       ├── 007_create_analytics.sql
 │       ├── run_migrations.sql
 │       └── seed.sql
-│
-└── n8n/
-    └── workflows/
-        ├── on-stream-start.json
-        ├── on-stream-end.json
-        └── event-reminder.json
 ```
 
 ---
@@ -404,24 +402,21 @@ Stores active refresh tokens for JWT auth.
 - Step 12: Stream status broadcast ✅
 - Step 13: Viewer count tracking ✅
 - Step 14: Camera heartbeat system ✅
-- Step 12: Stream status broadcast
-- Step 13: Viewer count tracking
-- Step 14: Camera heartbeat system
 
 ### PHASE 4 — FRONTEND
 - Step 15: React app setup (Vite + Tailwind + React Router + Zustand) ✅
 - Step 16: API service layer + auth context + Zustand store ✅
-- Step 17: Public homepage
-- Step 18: Live watch page + HLS.js player
-- Step 19: Events schedule page
-- Step 20: Recordings archive page
-- Step 21: Admin dashboard
-- Step 22: Broadcast studio UI (camera preview + Go Live)
-- Step 23: Multi-camera mixer UI
+- Step 17: Public homepage ✅
+- Step 18: Live watch page + HLS.js player ✅
+- Step 19: Events schedule page ✅
+- Step 20: Recordings archive page ✅
+- Step 21: Admin dashboard ✅
+- Step 22: Broadcast studio UI (camera preview + Go Live) ✅
+- Step 23: Multi-camera mixer UI ✅
 - Step 24: Chat UI (viewer side + admin moderation)
 
 ### PHASE 5 — AUTOMATION + DEPLOYMENT
-- Step 25: n8n workflows (social media posting)
+- Step 25: Social media services + scheduler (Facebook, WhatsApp, Twitter posting + node-cron)
 - Step 26: Docker Compose setup
 - Step 27: Nginx final configuration
 - Step 28: VPS deployment guide
@@ -431,9 +426,9 @@ Stores active refresh tokens for JWT auth.
 
 ## CURRENT STATUS
 
-**Last completed step:** Step 22 — Broadcast studio UI (camera preview, WebRTC, WHIP, audio meter)
-**Currently working on:** Phase 4 — Frontend (Step 23: Multi-camera mixer UI)
-**Next action:** Wait for permission to begin Step 23
+**Last completed step:** Step 23 — Multi-camera mixer UI (CameraMixer page + CameraSlot component)
+**Currently working on:** Phase 4 — Frontend (Step 24: Chat UI)
+**Next action:** Wait for permission to begin Step 24
 
 ---
 
@@ -458,8 +453,17 @@ AWS_REGION=eu-west-1
 AWS_S3_BUCKET=movement-recordings
 MEDIA_SERVER_URL=http://localhost:3001
 MEDIA_SERVER_SECRET=<shared secret>
-N8N_STREAM_START_WEBHOOK=http://localhost:5678/webhook/stream-start
-N8N_STREAM_END_WEBHOOK=http://localhost:5678/webhook/stream-end
+STREAM_PUBLIC_URL=http://localhost:5173
+FACEBOOK_PAGE_ID=<your page id>
+FACEBOOK_ACCESS_TOKEN=<your page access token>
+WHATSAPP_PHONE_NUMBER_ID=<your phone number id>
+WHATSAPP_ACCESS_TOKEN=<your access token>
+WHATSAPP_API_VERSION=v17.0
+TWITTER_API_KEY=<your api key>
+TWITTER_API_SECRET=<your api secret>
+TWITTER_ACCESS_TOKEN=<your access token>
+TWITTER_ACCESS_SECRET=<your access secret>
+CRON_EVENT_REMINDER=0 8 * * *
 CORS_ORIGIN=http://localhost:5173
 ```
 
