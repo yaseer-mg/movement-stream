@@ -51,6 +51,13 @@ export const useChatStore = create((set) => ({
       messages: state.messages.filter((m) => m.id !== messageId),
     })),
 
+  markDeleted: (messageId) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId ? { ...m, deleted: true } : m
+      ),
+    })),
+
   setMessages: (messages) => set({ messages }),
 
   clearMessages: () => set({ messages: [] }),

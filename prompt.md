@@ -413,7 +413,7 @@ Stores active refresh tokens for JWT auth.
 - Step 21: Admin dashboard ✅
 - Step 22: Broadcast studio UI (camera preview + Go Live) ✅
 - Step 23: Multi-camera mixer UI ✅
-- Step 24: Chat UI (viewer side + admin moderation)
+- Step 24: Chat UI (viewer side + admin moderation) ✅
 
 ### PHASE 5 — AUTOMATION + DEPLOYMENT
 - Step 25: Social media services + scheduler (Facebook, WhatsApp, Twitter posting + node-cron)
@@ -426,9 +426,9 @@ Stores active refresh tokens for JWT auth.
 
 ## CURRENT STATUS
 
-**Last completed step:** Step 23 — Multi-camera mixer UI (CameraMixer page + CameraSlot component)
-**Currently working on:** Phase 4 — Frontend (Step 24: Chat UI)
-**Next action:** Wait for permission to begin Step 24
+**Last completed step:** Step 24 — Chat UI (admin moderation panel with toggle, deleted message handling, real-time WebSocket)
+**Currently working on:** Phase 5 — Automation + Deployment (Step 25: Social media services + scheduler)
+**Next action:** Wait for permission to begin Step 25
 
 ---
 
