@@ -4,6 +4,7 @@ const { requireAuth, requireAdmin, requireSuperAdmin } = require('../middleware/
 const { AppError } = require('../middleware/error-handler');
 const { broadcast } = require('../websocket/index');
 const { env } = require('../config/env');
+const socialService = require('../services/social.service');
 
 const router = Router();
 
@@ -86,14 +87,12 @@ router.post('/start', requireAuth, requireSuperAdmin, async (req, res, next) => 
       console.log('Could not reach media server for start-all');
     }
 
-    // Fire n8n webhook (non-blocking — don't fail if n8n is down)
-    if (env.n8n.streamStartWebhook) {
-      fetch(env.n8n.streamStartWebhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, event_id, stream_id: status.id }),
-      }).catch(() => {});
-    }
+    // Fire social media post (fire-and-forget — never await,
+    // never let a social API failure fail the stream start)
+    const streamUrl = `${env.social.streamPublicUrl}/watch`;
+    socialService
+      .notifyStreamStart(title, streamUrl)
+      .catch((err) => console.log('Social notify failed:', err.message));
 
     res.json({ success: true, data: { status } });
   } catch (err) {
@@ -164,14 +163,12 @@ router.post('/end', requireAuth, requireSuperAdmin, async (req, res, next) => {
       console.log('Could not reach media server for stop-all');
     }
 
-    // Fire n8n webhook (non-blocking)
-    if (env.n8n.streamEndWebhook) {
-      fetch(env.n8n.streamEndWebhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stream_id: status.id, event_id: current.event_id }),
-      }).catch(() => {});
-    }
+    // Fire social media post with the public recordings page link
+    // (fire-and-forget — never await, never fail the request)
+    const recordingsUrl = `${env.social.streamPublicUrl}/recordings`;
+    socialService
+      .notifyStreamEnd(recordingsUrl)
+      .catch((err) => console.log('Social notify failed:', err.message));
 
     res.json({ success: true, data: { status } });
   } catch (err) {

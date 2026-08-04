@@ -56,9 +56,28 @@ const env = {
     region: process.env.AWS_REGION ?? 'eu-west-1',
     bucket: process.env.AWS_S3_BUCKET ?? 'movement-recordings',
   },
-  n8n: {
-    streamStartWebhook: process.env.N8N_STREAM_START_WEBHOOK ?? '',
-    streamEndWebhook: process.env.N8N_STREAM_END_WEBHOOK ?? '',
+  social: {
+    streamPublicUrl: process.env.STREAM_PUBLIC_URL ?? 'http://localhost:5173',
+    timezone: process.env.SOCIAL_TIMEZONE ?? 'Africa/Lagos',
+    facebook: {
+      pageId: process.env.FACEBOOK_PAGE_ID ?? '',
+      accessToken: process.env.FACEBOOK_ACCESS_TOKEN ?? '',
+    },
+    whatsapp: {
+      phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? '',
+      accessToken: process.env.WHATSAPP_ACCESS_TOKEN ?? '',
+      apiVersion: process.env.WHATSAPP_API_VERSION ?? 'v17.0',
+      recipients: (process.env.WHATSAPP_RECIPIENTS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    },
+    twitter: {
+      apiKey: process.env.TWITTER_API_KEY ?? '',
+      apiSecret: process.env.TWITTER_API_SECRET ?? '',
+      accessToken: process.env.TWITTER_ACCESS_TOKEN ?? '',
+      accessSecret: process.env.TWITTER_ACCESS_SECRET ?? '',
+    },
+  },
+  cron: {
+    eventReminder: process.env.CRON_EVENT_REMINDER ?? '0 8 * * *',
   },
 };
 

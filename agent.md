@@ -1126,9 +1126,9 @@ src/components/chat/ChatPanel.jsx  (may already exist from Step 18)
 
 ---
 
-### STEP 25 — Social Media Services + Scheduler
+### STEP 25 — Social Media Services + Scheduler ✅
 
-**Status:** Not started
+**Status:** Completed
 **Files to create:**
 ```
 apps/api-server/src/services/social.service.js
@@ -1190,11 +1190,13 @@ POST /api/stream/end  → after DB update + WebSocket broadcast:
 **Environment variables (api-server/.env):**
 ```
 STREAM_PUBLIC_URL=http://localhost:5173
+SOCIAL_TIMEZONE=Africa/Lagos
 FACEBOOK_PAGE_ID=<your page id>
 FACEBOOK_ACCESS_TOKEN=<your page access token>
 WHATSAPP_PHONE_NUMBER_ID=<your phone number id>
 WHATSAPP_ACCESS_TOKEN=<your access token>
 WHATSAPP_API_VERSION=v17.0
+WHATSAPP_RECIPIENTS=<comma separated subscriber phone numbers>
 TWITTER_API_KEY=<your api key>
 TWITTER_API_SECRET=<your api secret>
 TWITTER_ACCESS_TOKEN=<your access token>

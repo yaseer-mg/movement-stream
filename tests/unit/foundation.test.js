@@ -24,8 +24,22 @@ jest.mock('../../apps/api-server/src/config/env', () => ({
     },
     mediaServer: { url: 'http://localhost:3001', secret: 'test-secret' },
     s3: { accessKeyId: 'test', secretAccessKey: 'test', region: 'eu-west-1', bucket: 'test-bucket' },
-    n8n: { streamStartWebhook: '', streamEndWebhook: '' },
+    social: {
+      streamPublicUrl: 'http://localhost:5173',
+      timezone: 'Africa/Lagos',
+      facebook: { pageId: '', accessToken: '' },
+      whatsapp: { phoneNumberId: '', accessToken: '', apiVersion: 'v17.0', recipients: [] },
+      twitter: { apiKey: '', apiSecret: '', accessToken: '', accessSecret: '' },
+    },
+    cron: { eventReminder: '0 8 * * *' },
   },
+}));
+
+// ─── Mock social service (never hit real social APIs in tests) ───
+jest.mock('../../apps/api-server/src/services/social.service', () => ({
+  notifyStreamStart: jest.fn().mockResolvedValue(),
+  notifyStreamEnd: jest.fn().mockResolvedValue(),
+  postEventReminder: jest.fn().mockResolvedValue(),
 }));
 
 // ─── Mock AWS S3 ───

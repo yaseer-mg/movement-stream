@@ -57,10 +57,31 @@ const config = {
     secret: optional('MEDIA_SERVER_SECRET', 'dev-secret'),
   },
 
-  // n8n Webhooks
-  n8n: {
-    streamStartWebhook: optional('N8N_STREAM_START_WEBHOOK', ''),
-    streamEndWebhook:   optional('N8N_STREAM_END_WEBHOOK', ''),
+  // Social Media
+  social: {
+    streamPublicUrl: optional('STREAM_PUBLIC_URL', 'http://localhost:5173'),
+    timezone:        optional('SOCIAL_TIMEZONE', 'Africa/Lagos'),
+    facebook: {
+      pageId:      optional('FACEBOOK_PAGE_ID', ''),
+      accessToken: optional('FACEBOOK_ACCESS_TOKEN', ''),
+    },
+    whatsapp: {
+      phoneNumberId: optional('WHATSAPP_PHONE_NUMBER_ID', ''),
+      accessToken:   optional('WHATSAPP_ACCESS_TOKEN', ''),
+      apiVersion:    optional('WHATSAPP_API_VERSION', 'v17.0'),
+      recipients:    optional('WHATSAPP_RECIPIENTS', '').split(',').map((s) => s.trim()).filter(Boolean),
+    },
+    twitter: {
+      apiKey:       optional('TWITTER_API_KEY', ''),
+      apiSecret:    optional('TWITTER_API_SECRET', ''),
+      accessToken:  optional('TWITTER_ACCESS_TOKEN', ''),
+      accessSecret: optional('TWITTER_ACCESS_SECRET', ''),
+    },
+  },
+
+  // Cron jobs
+  cron: {
+    eventReminder: optional('CRON_EVENT_REMINDER', '0 8 * * *'),
   },
 
   // CORS

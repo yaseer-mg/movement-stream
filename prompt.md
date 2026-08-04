@@ -416,7 +416,7 @@ Stores active refresh tokens for JWT auth.
 - Step 24: Chat UI (viewer side + admin moderation) ✅
 
 ### PHASE 5 — AUTOMATION + DEPLOYMENT
-- Step 25: Social media services + scheduler (Facebook, WhatsApp, Twitter posting + node-cron)
+- Step 25: Social media services + scheduler (Facebook, WhatsApp, Twitter posting + node-cron) ✅
 - Step 26: Docker Compose setup
 - Step 27: Nginx final configuration
 - Step 28: VPS deployment guide
@@ -426,9 +426,9 @@ Stores active refresh tokens for JWT auth.
 
 ## CURRENT STATUS
 
-**Last completed step:** Step 24 — Chat UI (admin moderation panel with toggle, deleted message handling, real-time WebSocket)
-**Currently working on:** Phase 5 — Automation + Deployment (Step 25: Social media services + scheduler)
-**Next action:** Wait for permission to begin Step 25
+**Last completed step:** Step 25 — Social media services + scheduler (social.service.js, scheduler.service.js, node-cron)
+**Currently working on:** Phase 5 — Automation + Deployment (Step 26: Docker Compose setup)
+**Next action:** Wait for permission to begin Step 26
 
 ---
 
@@ -454,11 +454,13 @@ AWS_S3_BUCKET=movement-recordings
 MEDIA_SERVER_URL=http://localhost:3001
 MEDIA_SERVER_SECRET=<shared secret>
 STREAM_PUBLIC_URL=http://localhost:5173
+SOCIAL_TIMEZONE=Africa/Lagos
 FACEBOOK_PAGE_ID=<your page id>
 FACEBOOK_ACCESS_TOKEN=<your page access token>
 WHATSAPP_PHONE_NUMBER_ID=<your phone number id>
 WHATSAPP_ACCESS_TOKEN=<your access token>
 WHATSAPP_API_VERSION=v17.0
+WHATSAPP_RECIPIENTS=<comma separated subscriber phone numbers>
 TWITTER_API_KEY=<your api key>
 TWITTER_API_SECRET=<your api secret>
 TWITTER_ACCESS_TOKEN=<your access token>
