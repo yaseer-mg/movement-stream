@@ -1,0 +1,95 @@
+# ============================================================
+# Movement Stream — Docker Compose (development)
+# ============================================================
+# Services:
+#   postgres     — database, runs migrations from ./postgres on first init
+#   api-server   — Express REST API + WebSocket (port 4000)
+#   media-server — WHIP ingest + FFmpeg + HLS (ports 3001, 1935)
+#   web          — builds the React app into the shared `web_build` volume
+#   nginx        — edge: HLS delivery + API/WS proxy + React frontend (80/443)
+#
+# NOTE: infra/nginx.conf upstreams currently point at 127.0.0.1
+# (for host-installed nginx). Step 27 (Nginx Final Configuration)
+# switches them to the compose service names so the proxy works
+# inside the containers.
+#
+# Usage:
+#   docker compose -f infra/docker-compose.yml up --build
+# ============================================================
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: movement_stream
+      POSTGRES_USER: movement_user
+      POSTGRES_PASSWORD: Movement2025!
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U movement_user -d movement_stream"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api-server:
+    build: ../apps/api-server
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: ../apps/api-server/.env
+    environment:
+      DB_HOST: postgres
+      MEDIA_SERVER_URL: http://media-server:3001
+
+  media-server:
+    build: ../apps/media-server
+    ports:
+      - "3001:3001"
+      - "1935:1935"
+    depends_on:
+      - api-server
+    env_file: ../apps/media-server/.env
+    environment:
+      API_SERVER_URL: http://api-server:4000
+    volumes:
+      - hls_data:/var/hls
+      - recordings_temp:/var/recordings
+
+  web:
+    build:
+      context: ../apps/web
+      args:
+        VITE_API_URL: http://localhost
+        VITE_WS_URL: ws://localhost/ws
+        VITE_HLS_URL: http://localhost/hls
+        VITE_MEDIA_SERVER_URL: http://localhost/whip
+    volumes:
+      - web_build:/usr/share/nginx/html
+    depends_on:
+      - api-server
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - web_build:/var/www/movement-stream:ro
+      - hls_data:/var/hls:ro
+    depends_on:
+      - api-server
+      - media-server
+      - web
+
+volumes:
+  postgres_data:
+  hls_data:
+  recordings_temp:
+  web_build:
