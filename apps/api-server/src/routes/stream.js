@@ -9,6 +9,42 @@ const socialService = require('../services/social.service');
 const router = Router();
 
 // ─────────────────────────────────────────
+// POST /api/stream/camera-event
+// Internal — called by the media server when a camera
+// connects or disconnects. Protected by x-media-secret.
+// Updates cameras.is_connected and broadcasts to clients.
+// ─────────────────────────────────────────
+router.post('/camera-event', async (req, res, next) => {
+  try {
+    const mediaSecret = req.headers['x-media-secret'];
+    if (mediaSecret !== env.mediaServer.secret) {
+      throw new AppError('Unauthorized', 401, 'UNAUTHORIZED');
+    }
+
+    const { event, slot } = req.body;
+    const validSlots = ['cam1', 'cam2', 'cam3'];
+
+    if (!event || !slot || !validSlots.includes(slot)) {
+      throw new AppError('event and slot (cam1/cam2/cam3) are required', 400, 'VALIDATION_ERROR');
+    }
+
+    const isConnected = event === 'camera.connected';
+
+    await query(
+      `UPDATE cameras SET is_connected = $1, last_seen_at = now(), updated_at = now() WHERE slot = $2`,
+      [isConnected, slot]
+    );
+
+    broadcast({ type: event, data: { slot } });
+    console.log(`Camera event: ${event} → ${slot}`);
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─────────────────────────────────────────
 // GET /api/stream/status
 // Public — returns current stream state.
 // IMPORTANT: never includes stream_key.
@@ -87,6 +123,24 @@ router.post('/start', requireAuth, requireSuperAdmin, async (req, res, next) => 
       console.log('Could not reach media server for start-all');
     }
 
+    // Open a recording session on the media server
+    try {
+      await fetch(`${env.mediaServer.url}/internal/session/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-media-secret': env.mediaServer.secret,
+        },
+        body: JSON.stringify({
+          streamId: status.id,
+          eventId: event_id || null,
+          streamTitle: title,
+        }),
+      });
+    } catch {
+      console.log('Could not reach media server for session start');
+    }
+
     // Fire social media post (fire-and-forget — never await,
     // never let a social API failure fail the stream start)
     const streamUrl = `${env.social.streamPublicUrl}/watch`;
@@ -134,33 +188,20 @@ router.post('/end', requireAuth, requireSuperAdmin, async (req, res, next) => {
       data: { ended_at: status.ended_at },
     });
 
-    // Tell media server to start recording (merge segments + upload to S3)
-    // This must happen BEFORE cleanup, since it needs the .ts segments
+    // Tell media server to finalize the recording session —
+    // snapshots the active camera feed, concatenates segments
+    // into an mp4, and creates the recording record.
     try {
-      await fetch(`${env.mediaServer.url}/recorder/start`, {
+      await fetch(`${env.mediaServer.url}/internal/session/end`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-media-secret': env.mediaServer.secret,
         },
-        body: JSON.stringify({
-          streamId: status.id,
-          eventId: current.event_id,
-          streamTitle: current.title,
-        }),
+        body: JSON.stringify({ streamId: status.id }),
       });
     } catch {
-      console.log('Could not reach media server for recording');
-    }
-
-    // Tell media server to stop all transcoding (AFTER recording started)
-    try {
-      await fetch(`${env.mediaServer.url}/internal/mixer/stop-all`, {
-        method: 'POST',
-        headers: { 'x-media-secret': env.mediaServer.secret },
-      });
-    } catch {
-      console.log('Could not reach media server for stop-all');
+      console.log('Could not reach media server for session end');
     }
 
     // Fire social media post with the public recordings page link
@@ -189,6 +230,8 @@ router.patch('/camera', requireAuth, requireAdmin, async (req, res, next) => {
       throw new AppError(`camera must be one of: ${validSlots.join(', ')}`, 400, 'VALIDATION_ERROR');
     }
 
+    const streamRow = await queryOne('SELECT id FROM stream_status LIMIT 1');
+
     // Tell the media server to switch the active camera feed
     try {
       await fetch(`${env.mediaServer.url}/internal/switch-camera`, {
@@ -197,7 +240,7 @@ router.patch('/camera', requireAuth, requireAdmin, async (req, res, next) => {
           'Content-Type': 'application/json',
           'x-media-secret': env.mediaServer.secret,
         },
-        body: JSON.stringify({ camera }),
+        body: JSON.stringify({ camera, streamId: streamRow?.id }),
       });
     } catch {
       // Media server might be down — log but don't fail the request

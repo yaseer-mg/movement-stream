@@ -7,8 +7,6 @@ const router = Router();
 
 // ─────────────────────────────────────────
 // Quality levels that match the transcoder presets.
-// Each entry maps a quality name to its bitrate
-// so the master playlist can list them correctly.
 // ─────────────────────────────────────────
 const QUALITY_LEVELS = [
   { name: '1080p', bandwidth: 4000000, resolution: '1920x1080' },
@@ -18,14 +16,13 @@ const QUALITY_LEVELS = [
 ];
 
 // ─────────────────────────────────────────
-// generateMasterPlaylist()
-// Writes /var/hls/master.m3u8 — the master
-// playlist that HLS.js loads first.
-//
-// This file lists all available quality levels
-// and tells the player where to find each one.
+// generateMasterPlaylist(activeSlot = 'cam1')
+// Writes /var/hls/master.m3u8 pointing at the active
+// camera slot's quality playlists. On camera switch the
+// mixer calls this with the new active slot so the live
+// master always refers to the "program" feed.
 // ─────────────────────────────────────────
-function generateMasterPlaylist() {
+function generateMasterPlaylist(activeSlot = 'cam1') {
   const hlsBase = config.hls.outputPath;
   const masterPath = path.join(hlsBase, 'master.m3u8');
 
@@ -33,7 +30,7 @@ function generateMasterPlaylist() {
   content += '#EXT-X-VERSION:3\n\n';
 
   for (const level of QUALITY_LEVELS) {
-    const playlistPath = `${level.name}/stream.m3u8`;
+    const playlistPath = `${activeSlot}/${level.name}/stream.m3u8`;
     const width = level.resolution.split('x')[0];
     const height = level.resolution.split('x')[1];
 
@@ -43,7 +40,7 @@ function generateMasterPlaylist() {
 
   fs.mkdirSync(hlsBase, { recursive: true });
   fs.writeFileSync(masterPath, content, 'utf-8');
-  console.log(`Master playlist written → ${masterPath}`);
+  console.log(`Master playlist written → ${masterPath} (active: ${activeSlot})`);
 
   return masterPath;
 }
@@ -51,47 +48,52 @@ function generateMasterPlaylist() {
 // ─────────────────────────────────────────
 // cleanupHlsDirectory()
 // Removes all HLS files (segments + playlists).
-// Called when stream ends to prepare for next stream.
 // ─────────────────────────────────────────
 function cleanupHlsDirectory() {
   const hlsBase = config.hls.outputPath;
-
   if (!fs.existsSync(hlsBase)) return;
 
   const entries = fs.readdirSync(hlsBase, { withFileTypes: true });
-
   for (const entry of entries) {
     const fullPath = path.join(hlsBase, entry.name);
-
     if (entry.isDirectory()) {
-      // Delete all files inside quality directories
       const files = fs.readdirSync(fullPath);
       for (const file of files) {
-        fs.unlinkSync(path.join(fullPath, file));
+        const subEntries = fs.readdirSync(path.join(fullPath, file), { withFileTypes: true });
+        for (const sub of subEntries) {
+          const subPath = path.join(fullPath, file, sub.name);
+          if (sub.isDirectory()) {
+            const inner = fs.readdirSync(subPath);
+            for (const f of inner) { try { fs.unlinkSync(path.join(subPath, f)); } catch {} }
+            try { fs.rmdirSync(subPath); } catch {}
+          } else {
+            try { fs.unlinkSync(subPath); } catch {}
+          }
+        }
+        try { fs.rmdirSync(path.join(fullPath, file)); } catch {}
       }
     } else {
-      // Delete files in root (master.m3u8, etc.)
-      fs.unlinkSync(fullPath);
+      try { fs.unlinkSync(fullPath); } catch {}
     }
   }
 
-  console.log('HLS directory cleaned up');
+  console.log('[Packager] HLS directory cleaned up');
 }
 
 // ─────────────────────────────────────────
-// getHlsStatus()
-// Returns which quality playlists exist and
-// how many segments each has.
+// getHlsStatus(activeSlot = 'cam1')
+// Returns which quality playlists exist and how many
+// segments each has for the active slot.
 // ─────────────────────────────────────────
-function getHlsStatus() {
+function getHlsStatus(activeSlot = 'cam1') {
   const hlsBase = config.hls.outputPath;
-  const status = { masterExists: false, qualities: [] };
+  const status = { activeSlot, masterExists: false, qualities: [] };
 
   const masterPath = path.join(hlsBase, 'master.m3u8');
   status.masterExists = fs.existsSync(masterPath);
 
   for (const level of QUALITY_LEVELS) {
-    const dir = path.join(hlsBase, level.name);
+    const dir = path.join(hlsBase, activeSlot, level.name);
     const playlistPath = path.join(dir, 'stream.m3u8');
 
     let segmentCount = 0;
@@ -99,15 +101,11 @@ function getHlsStatus() {
 
     if (fs.existsSync(dir)) {
       const files = fs.readdirSync(dir);
-      segmentCount = files.filter((f) => f.endsWith('.ts')).length;
+      segmentCount = files.filter((f) => f.endsWith('.ts') && !f.endsWith('.ts.tmp')).length;
       playlistExists = files.includes('stream.m3u8');
     }
 
-    status.qualities.push({
-      name: level.name,
-      playlistExists,
-      segmentCount,
-    });
+    status.qualities.push({ name: level.name, playlistExists, segmentCount });
   }
 
   return status;
@@ -127,36 +125,7 @@ router.get('/health', (_req, res) => {
 });
 
 // ─────────────────────────────────────────
-// POST /packager/generate-master
-// Internal — generates the master.m3u8 playlist.
-// Called after transcoding starts.
-// ─────────────────────────────────────────
-router.post('/generate-master', (_req, res) => {
-  try {
-    const masterPath = generateMasterPlaylist();
-    res.json({ success: true, data: { path: masterPath } });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// ─────────────────────────────────────────
-// POST /packager/cleanup
-// Internal — cleans up HLS files.
-// Called when stream ends.
-// ─────────────────────────────────────────
-router.post('/cleanup', (_req, res) => {
-  try {
-    cleanupHlsDirectory();
-    res.json({ success: true, message: 'HLS directory cleaned up' });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// ─────────────────────────────────────────
 // GET /packager/status
-// Internal — returns current HLS status.
 // ─────────────────────────────────────────
 router.get('/status', (_req, res) => {
   res.json({ success: true, data: getHlsStatus() });
@@ -165,3 +134,4 @@ router.get('/status', (_req, res) => {
 module.exports = router;
 module.exports.generateMasterPlaylist = generateMasterPlaylist;
 module.exports.cleanupHlsDirectory = cleanupHlsDirectory;
+module.exports.getHlsStatus = getHlsStatus;

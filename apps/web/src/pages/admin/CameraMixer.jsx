@@ -11,7 +11,7 @@ const CAMERA_SLOTS = [
   { slot: 'cam3', label: 'Speaker Closeup' },
 ];
 
-const HLS_URL = import.meta.env.VITE_HLS_URL || 'http://localhost:8080/live/stream.m3u8';
+const HLS_URL = (import.meta.env.VITE_HLS_URL || 'http://localhost:8081/hls').replace(/\/$/, '') + '/master.m3u8';
 
 export default function CameraMixer() {
   const { isLive, activeCamera } = useStream();
@@ -20,8 +20,11 @@ export default function CameraMixer() {
   const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video || !isLive) return;
 
+    // Rebuild the player whenever the active camera changes so
+    // HLS.js re-reads master.m3u8 (which now points at the new slot).
     if (Hls.isSupported()) {
       const hls = new Hls({
         liveSyncDurationCount: 3,
@@ -29,15 +32,20 @@ export default function CameraMixer() {
       });
       hlsRef.current = hls;
       hls.loadSource(HLS_URL);
-      hls.attachMedia(videoRef.current);
+      hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        videoRef.current?.play().catch(() => {});
+        video.play().catch(() => {});
+      });
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (data.fatal && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          hls.startLoad();
+        }
       });
       return () => { hls.destroy(); hlsRef.current = null; };
-    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-      videoRef.current.src = HLS_URL;
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = HLS_URL;
     }
-  }, []);
+  }, [isLive, activeCamera]);
 
   const handleSwitch = async (slot) => {
     if (switching || slot === activeCamera) return;

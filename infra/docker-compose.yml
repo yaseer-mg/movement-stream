@@ -6,15 +6,18 @@
 #   api-server   — Express REST API + WebSocket (port 4000)
 #   media-server — WHIP ingest + FFmpeg + HLS (ports 3001, 1935)
 #   web          — builds the React app into the shared `web_build` volume
-#   nginx        — edge: HLS delivery + API/WS proxy + React frontend (80/443)
+#   nginx        — edge: HLS delivery + API/WS proxy + React frontend (8081)
 #
-# NOTE: infra/nginx.conf upstreams currently point at 127.0.0.1
-# (for host-installed nginx). Step 27 (Nginx Final Configuration)
-# switches them to the compose service names so the proxy works
-# inside the containers.
+# NOTE: This dev compose is tuned for this machine. The host already runs
+# nginx on :80/:443 and Postgres on :5432, so host ports are remapped here:
+# web/API/WS/HLS all fronted on http://localhost:8081, DB on localhost:5437.
 #
-# Usage:
-#   docker compose -f infra/docker-compose.yml up --build
+# Uses infra/nginx.dev.conf (HTTP-only). Production uses the
+# HTTPS config in infra/nginx.conf via docker-compose.prod.yml.
+#
+# Usage, on this machine:
+#   docker compose -f infra/docker-compose.yml \
+#                 -f infra/docker-compose.local.yml up --build
 # ============================================================
 
 services:
@@ -25,7 +28,7 @@ services:
       POSTGRES_USER: movement_user
       POSTGRES_PASSWORD: Movement2025!
     ports:
-      - "5432:5432"
+      - "5437:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres:/docker-entrypoint-initdb.d
@@ -68,7 +71,7 @@ services:
         VITE_API_URL: http://localhost
         VITE_WS_URL: ws://localhost/ws
         VITE_HLS_URL: http://localhost/hls
-        VITE_MEDIA_SERVER_URL: http://localhost/whip
+        VITE_MEDIA_SERVER_URL: http://localhost
     volumes:
       - web_build:/usr/share/nginx/html
     depends_on:
@@ -77,12 +80,12 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
-      - "443:443"
+      - "8081:80"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.dev.conf:/etc/nginx/nginx.conf:ro
       - web_build:/var/www/movement-stream:ro
       - hls_data:/var/hls:ro
+      - recordings_temp:/var/recordings:ro
     depends_on:
       - api-server
       - media-server

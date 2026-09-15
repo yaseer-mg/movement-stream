@@ -1,85 +1,59 @@
 const { Router } = require('express');
-const { activeConnections } = require('../whip');
-const { startTranscoding, stopTranscoding, activeProcesses } = require('../transcoder');
+const connections = require('../connections');
+const { startTranscoding, stopTranscoding, stopAllTranscoding, activeProcesses } = require('../transcoder');
 const { generateMasterPlaylist } = require('../packager');
+const recorder = require('../recorder');
 
 const router = Router();
 
 // ─────────────────────────────────────────
 // Mixer state
-// Tracks which camera is currently on air.
 // ─────────────────────────────────────────
 let activeCamera = 'cam1';
 
 // ─────────────────────────────────────────
 // POST /internal/switch-camera
-// Called by the API server when admin switches cameras.
-// Body: { camera: 'cam1' | 'cam2' | 'cam3' }
+// Admin switches the live program to a new camera slot.
 //
-// Flow:
-// 1. Validate the target camera slot
-// 2. Check if a peer connection exists for that slot
-// 3. Stop transcoding the old camera
-// 4. Start transcoding the new camera
-// 5. Generate master playlist
-// 6. Update activeCamera state
+// All connected cameras continue transcoding so the mix
+// can switch back later without reconnecting. The master
+// playlist is repointed to the new active slot.
 // ─────────────────────────────────────────
 router.post('/switch-camera', (req, res) => {
   const { camera } = req.body;
-  const validSlots = ['cam1', 'cam2', 'cam3'];
 
-  if (!camera || !validSlots.includes(camera)) {
+  if (!connections.isValidSlot(camera)) {
     return res.status(400).json({
       success: false,
-      error: `camera must be one of: ${validSlots.join(', ')}`,
+      error: 'camera must be one of: cam1, cam2, cam3',
     });
   }
 
-  // Already on this camera — no-op
+  // No-op if already on this camera
   if (camera === activeCamera) {
-    return res.json({
-      success: true,
-      data: { activeCamera, message: 'Already on this camera' },
-    });
+    return res.json({ success: true, data: { activeCamera, message: 'Already on this camera' } });
   }
 
-  // Check if the target camera has an active WebRTC connection
-  const targetConnection = activeConnections.get(camera);
-  if (!targetConnection) {
+  // Target must have an active ingest connection
+  if (!connections.has(camera)) {
     return res.status(404).json({
       success: false,
-      error: `No active connection on ${camera}. Is the camera operator connected?`,
+      error: `No active ingest on ${camera}`,
     });
   }
 
-  // Check if the target camera has transcoding running
-  const targetTranscoding = activeProcesses.get(camera);
-  if (!targetTranscoding) {
-    // Start transcoding for the new camera
-    try {
-      startTranscoding(camera);
-      generateMasterPlaylist();
-      console.log(`[Mixer] Started transcoding for ${camera}`);
-    } catch (err) {
-      console.error(`[Mixer] Failed to start transcoding for ${camera}:`, err.message);
-      return res.status(500).json({
-        success: false,
-        error: `Failed to start transcoding for ${camera}`,
-      });
-    }
-  }
-
-  // Stop transcoding the old camera (if it was active and different from new)
-  if (activeCamera !== camera && activeProcesses.has(activeCamera)) {
-    stopTranscoding(activeCamera);
-    console.log(`[Mixer] Stopped transcoding for ${activeCamera}`);
-  }
-
-  // Update state
   const previousCamera = activeCamera;
-  activeCamera = camera;
 
-  console.log(`[Mixer] Camera switched: ${previousCamera} → ${camera}`);
+  // Snapshot the outgoing camera before repointing
+  const streamId = req.body.streamId;
+  if (streamId && recorder.hasActiveSession(streamId)) {
+    recorder.snapshotSlot(streamId, previousCamera);
+  }
+
+  activeCamera = camera;
+  generateMasterPlaylist(activeCamera);
+
+  console.log(`[Mixer] Camera switched: ${previousCamera} → ${activeCamera}`);
 
   res.json({
     success: true,
@@ -93,8 +67,6 @@ router.post('/switch-camera', (req, res) => {
 
 // ─────────────────────────────────────────
 // GET /internal/mixer/status
-// Returns current mixer state.
-// Used by the API server to check which camera is active.
 // ─────────────────────────────────────────
 router.get('/mixer/status', (_req, res) => {
   res.json({
@@ -109,21 +81,15 @@ router.get('/mixer/status', (_req, res) => {
 
 // ─────────────────────────────────────────
 // GET /internal/mixer/cameras
-// Returns detailed info about all camera slots.
 // ─────────────────────────────────────────
 router.get('/mixer/cameras', (_req, res) => {
-  const cameras = ['cam1', 'cam2', 'cam3'].map((slot) => {
-    const connection = activeConnections.get(slot);
-    const transcoding = activeProcesses.has(slot);
-
-    return {
-      slot,
-      isConnected: !!connection,
-      isTranscoding: transcoding,
-      isActive: slot === activeCamera,
-      createdAt: connection?.createdAt || null,
-    };
-  });
+  const cameras = ['cam1', 'cam2', 'cam3'].map((slot) => ({
+    slot,
+    isConnected: connections.has(slot),
+    isTranscoding: activeProcesses.has(slot),
+    isActive: slot === activeCamera,
+    createdAt: connections.get(slot)?.connectedAt || null,
+  }));
 
   res.json({ success: true, data: { cameras, activeCamera } });
 });
@@ -131,13 +97,11 @@ router.get('/mixer/cameras', (_req, res) => {
 // ─────────────────────────────────────────
 // POST /internal/mixer/start-all
 // Starts transcoding for all connected cameras.
-// Useful when the stream starts and multiple cameras
-// are already connected.
 // ─────────────────────────────────────────
 router.post('/mixer/start-all', (_req, res) => {
   const started = [];
 
-  for (const [slot] of activeConnections) {
+  for (const slot of connections.keys()) {
     if (!activeProcesses.has(slot)) {
       try {
         startTranscoding(slot);
@@ -149,32 +113,60 @@ router.post('/mixer/start-all', (_req, res) => {
   }
 
   if (started.length > 0) {
-    generateMasterPlaylist();
+    generateMasterPlaylist(activeCamera);
   }
 
-  res.json({
-    success: true,
-    data: { started, activeCamera },
-  });
+  res.json({ success: true, data: { started, activeCamera } });
 });
 
 // ─────────────────────────────────────────
 // POST /internal/mixer/stop-all
-// Stops all transcoding. Called when stream ends.
+// Stops all transcoding (stream ended).
 // ─────────────────────────────────────────
 router.post('/mixer/stop-all', (_req, res) => {
-  for (const [slot] of activeProcesses) {
-    stopTranscoding(slot);
-  }
-
+  stopAllTranscoding();
   res.json({ success: true, message: 'All transcoding stopped' });
 });
 
 // ─────────────────────────────────────────
-// HELPER: Get list of connected camera slots
+// Session lifecycle endpoints
+// Called by the api-server at stream start/end.
+// ─────────────────────────────────────────
+
+router.post('/session/start', (req, res) => {
+  const { streamId, eventId, streamTitle } = req.body;
+
+  if (!streamId) {
+    return res.status(400).json({ success: false, error: 'streamId is required' });
+  }
+
+  recorder.startSession(streamId, { eventId, streamTitle });
+  generateMasterPlaylist(activeCamera);
+
+  res.json({ success: true, message: 'Recording session started', data: { activeCamera } });
+});
+
+router.post('/session/end', async (req, res) => {
+  const { streamId } = req.body;
+
+  if (!streamId) {
+    return res.status(400).json({ success: false, error: 'streamId is required' });
+  }
+
+  try {
+    await recorder.endSession(streamId, activeCamera);
+  } catch (err) {
+    console.error('[Mixer] Session end failed:', err.message);
+  }
+
+  res.json({ success: true, message: 'Recording session ended' });
+});
+
+// ─────────────────────────────────────────
+// Helper
 // ─────────────────────────────────────────
 function getConnectedCameras() {
-  return Array.from(activeConnections.keys());
+  return Array.from(connections.keys());
 }
 
 module.exports = router;

@@ -1,173 +1,176 @@
 const { Router } = require('express');
 const { spawn } = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { config } = require('../config');
+const { getHlsStatus } = require('../packager');
 
 const router = Router();
 
 // ─────────────────────────────────────────
-// S3 client — configured from environment variables
+// Session state — one per streamId (if recording is active).
 // ─────────────────────────────────────────
-const s3 = new S3Client({
-  region: config.s3.region,
-  credentials: {
-    accessKeyId: config.s3.accessKeyId,
-    secretAccessKey: config.s3.secretAccessKey,
-  },
-});
+const sessions = new Map();
 
 // ─────────────────────────────────────────
-// Active recording jobs: streamId → { process, outputPath }
+// startSession(streamId, options)
+// Creates a recording workspace and begins tracking
+// segment copies for the given stream.
 // ─────────────────────────────────────────
-const activeRecordings = new Map();
+function startSession(streamId, options = {}) {
+  // Use a unique recording id per broadcast so consecutive streams
+  // on this single stream_status row never overwrite each other's file.
+  const recordingId = crypto.randomUUID();
+  const workspace = path.join(config.recordings.tempPath, recordingId);
+
+  fs.mkdirSync(workspace, { recursive: true });
+
+  sessions.set(streamId, {
+    recordingId,
+    workspace,
+    streamTitle: options.streamTitle || 'Untitled Recording',
+    eventId: options.eventId || null,
+    copied: new Set(),
+    orderCounter: 0,
+  });
+
+  console.log(`[Recorder] Session started for stream ${streamId} (recording ${recordingId})`);
+}
 
 // ─────────────────────────────────────────
-// startRecording(streamId, options)
-// Merges .ts segments into .mp4 and uploads to S3.
-//
-// options: { streamId, eventId, streamTitle }
+// snapshotSlot(streamId, slot)
+// Copies any new 1080p segments from the given slot
+// into the recording workspace. Called by the mixer
+// when a camera switch happens or at session end.
 // ─────────────────────────────────────────
-async function startRecording(streamId, options = {}) {
-  const { eventId, streamTitle } = options;
+function snapshotSlot(streamId, slot) {
+  const session = sessions.get(streamId);
+  if (!session) return;
 
-  // Ensure temp directory exists
-  const tempDir = config.recordings.tempPath;
-  fs.mkdirSync(tempDir, { recursive: true });
+  const slotHlsDir = path.join(config.hls.outputPath, slot, '1080p');
+  if (!fs.existsSync(slotHlsDir)) return;
 
-  const outputPath = path.join(tempDir, `${streamId}.mp4`);
-  const segmentDir = path.join(config.hls.outputPath, '1080p');
+  const files = fs.readdirSync(slotHlsDir)
+    .filter((f) => f.endsWith('.ts') && !f.endsWith('.ts.tmp'))
+    .sort();
 
-  // Build the date + title for the S3 key
-  const date = new Date().toISOString().split('T')[0];
-  const safeTitle = (streamTitle || 'recording')
-    .replace(/[^a-zA-Z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .toLowerCase();
-  const s3Key = `recordings/${streamId}/${date}_${safeTitle}.mp4`;
+  for (const file of files) {
+    if (session.copied.has(file)) continue;
+    session.copied.add(file);
 
-  console.log(`[Recorder] Starting recording merge for stream ${streamId}`);
+    const src = path.join(slotHlsDir, file);
+    const order = String(++session.orderCounter).padStart(8, '0');
+    const dest = path.join(session.workspace, `seg_${order}.ts`);
 
-  // ─── Step 1: Merge .ts segments into .mp4 using FFmpeg ───
-  return new Promise((resolve, reject) => {
-    // Create a concat list of all .ts files
-    const concatList = path.join(tempDir, `${streamId}_concat.txt`);
-
-    try {
-      const files = fs.readdirSync(segmentDir)
-        .filter((f) => f.endsWith('.ts'))
-        .sort();
-
-      if (files.length === 0) {
-        console.log(`[Recorder] No .ts segments found in ${segmentDir}`);
-        return reject(new Error('No video segments to record'));
-      }
-
-      // Write concat file for FFmpeg
-      const content = files.map((f) => `file '${path.join(segmentDir, f)}'`).join('\n');
-      fs.writeFileSync(concatList, content, 'utf-8');
-      console.log(`[Recorder] Found ${files.length} segments to merge`);
-
-    } catch (err) {
-      return reject(err);
+    try { fs.copyFileSync(src, dest); } catch (err) {
+      console.error(`[Recorder] Failed to snapshot ${file}:`, err.message);
     }
+  }
 
-    // FFmpeg concat command: merge segments → single mp4
+  console.log(`[Recorder] Snapshot ${slot} → ${session.orderCounter} segments (stream ${streamId})`);
+}
+
+// ─────────────────────────────────────────
+// endSession(streamId, activeSlot)
+// Takes a final snapshot, concatenates workspace
+// segments into a single mp4, notifies the api-server,
+// and cleans up the HLS directory for the next stream.
+// ─────────────────────────────────────────
+async function endSession(streamId, activeSlot) {
+  const session = sessions.get(streamId);
+  if (!session) {
+    console.log(`[Recorder] No session to end for ${streamId}`);
+    return;
+  }
+
+  // Final snapshot of whatever is on-air right now
+  snapshotSlot(streamId, activeSlot);
+
+  if (session.orderCounter === 0) {
+    console.log(`[Recorder] No segments to record for stream ${streamId}`);
+    cleanupTransientFiles(session.workspace);
+    sessions.delete(streamId);
+    return;
+  }
+  const concatList = path.join(session.workspace, 'concat.txt');
+  const entries = fs.readdirSync(session.workspace)
+    .filter((f) => f.startsWith('seg_') && f.endsWith('.ts'))
+    .sort();
+  const content = entries.map((f) => `file '${path.join(session.workspace, f)}'`).join('\n');
+  fs.writeFileSync(concatList, content, 'utf-8');
+
+  const outputPath = path.join(session.workspace, 'final.mp4');
+
+  console.log(`[Recorder] Concatenating ${entries.length} segments → ${outputPath}`);
+
+  try {
+    await concatSegments(concatList, outputPath);
+    console.log(`[Recorder] Merge complete → ${outputPath}`);
+
+    const stats = fs.statSync(outputPath);
+    const fileSizeBytes = stats.size;
+    const durationSecs = await getDuration(outputPath);
+    console.log(`[Recorder] Duration: ${durationSecs}s, Size: ${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB`);
+
+    const publicPath = `/recordings/${session.recordingId}/final.mp4`;
+    const s3Key = `recordings/${session.recordingId}/final.mp4`;
+
+    await notifyApiServer({
+      stream_id: streamId,
+      event_id: session.eventId,
+      title: session.streamTitle,
+      file_url: publicPath,
+      s3_key: s3Key,
+      duration_secs: durationSecs,
+      file_size_bytes: fileSizeBytes,
+    });
+
+    console.log(`[Recorder] Recording saved for stream ${streamId}`);
+  } catch (err) {
+    console.error(`[Recorder] Recording failed for ${streamId}:`, err.message);
+  }
+
+  // Remove transient segment + concat files but keep final.mp4
+  // so the public /recordings/<recordingId>/final.mp4 URL stays valid.
+  cleanupTransientFiles(session.workspace);
+  sessions.delete(streamId);
+}
+
+// ─────────────────────────────────────────
+// concatSegments(listPath, outputPath)
+// Merges .ts files into a single mp4 via FFmpeg concat.
+// ─────────────────────────────────────────
+function concatSegments(listPath, outputPath) {
+  return new Promise((resolve, reject) => {
     const ffmpeg = spawn('ffmpeg', [
+      '-hide_banner',
+      '-y',
       '-f', 'concat',
       '-safe', '0',
-      '-i', concatList,
-      '-c', 'copy',          // Copy streams without re-encoding (fast!)
-      '-movflags', '+faststart',  // Move moov atom to start (for web playback)
+      '-i', listPath,
+      '-c', 'copy',
+      '-movflags', '+faststart',
       outputPath,
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
 
     let stderr = '';
     ffmpeg.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
 
-    ffmpeg.on('error', (err) => {
-      console.error(`[Recorder] FFmpeg merge failed:`, err.message);
-      cleanup(concatList, outputPath);
-      reject(err);
-    });
+    ffmpeg.on('error', reject);
 
-    ffmpeg.on('close', async (code) => {
+    ffmpeg.on('close', (code) => {
       if (code !== 0) {
-        console.error(`[Recorder] FFmpeg exited with code ${code}`);
-        console.error(stderr.slice(-500));
-        cleanup(concatList, outputPath);
-        return reject(new Error(`FFmpeg merge failed with code ${code}`));
+        console.error(stderr.slice(-400));
+        return reject(new Error(`FFmpeg concat failed with code ${code}`));
       }
-
-      console.log(`[Recorder] Merge complete → ${outputPath}`);
-
-      try {
-        // ─── Step 2: Get file info ───
-        const stats = fs.statSync(outputPath);
-        const fileSizeBytes = stats.size;
-
-        // Get duration using ffprobe
-        const durationSecs = await getDuration(outputPath);
-        console.log(`[Recorder] Duration: ${durationSecs}s, Size: ${(fileSizeBytes / 1024 / 1024).toFixed(1)}MB`);
-
-        // ─── Step 3: Upload to S3 ───
-        console.log(`[Recorder] Uploading to S3: ${s3Key}`);
-        const fileStream = fs.createReadStream(outputPath);
-
-        await s3.send(new PutObjectCommand({
-          Bucket: config.s3.bucket,
-          Key: s3Key,
-          Body: fileStream,
-          ContentType: 'video/mp4',
-        }));
-
-        const fileUrl = `https://${config.s3.bucket}.s3.${config.s3.region}.amazonaws.com/${s3Key}`;
-        console.log(`[Recorder] Upload complete → ${fileUrl}`);
-
-        // ─── Step 4: Notify API server to create recording record ───
-        await notifyApiServer({
-          stream_id: streamId,
-          event_id: eventId || null,
-          title: streamTitle || `Recording ${date}`,
-          file_url: fileUrl,
-          s3_key: s3Key,
-          duration_secs: durationSecs,
-          file_size_bytes: fileSizeBytes,
-        });
-
-        console.log(`[Recorder] Recording saved successfully`);
-
-        // ─── Step 5: Cleanup temp files ───
-        cleanup(concatList, outputPath);
-
-        resolve({ fileUrl, s3Key, durationSecs, fileSizeBytes });
-
-      } catch (err) {
-        console.error(`[Recorder] Upload/notify failed:`, err.message);
-        cleanup(concatList, outputPath);
-        reject(err);
-      }
+      resolve();
     });
-
-    activeRecordings.set(streamId, { process: ffmpeg, outputPath });
   });
 }
 
 // ─────────────────────────────────────────
-// stopRecording(streamId)
-// Stops an active recording (if any).
-// ─────────────────────────────────────────
-function stopRecording(streamId) {
-  const recording = activeRecordings.get(streamId);
-  if (recording) {
-    try { recording.process.kill('SIGTERM'); } catch {}
-    activeRecordings.delete(streamId);
-  }
-}
-
-// ─────────────────────────────────────────
-// HELPER: Get video duration using ffprobe
+// getDuration(filePath) — via ffprobe
 // ─────────────────────────────────────────
 function getDuration(filePath) {
   return new Promise((resolve) => {
@@ -185,13 +188,13 @@ function getDuration(filePath) {
       const duration = parseFloat(output.trim());
       resolve(isNaN(duration) ? 0 : Math.round(duration));
     });
-
     probe.on('error', () => resolve(0));
   });
 }
 
 // ─────────────────────────────────────────
-// HELPER: Notify API server to create recording record
+// notifyApiServer(data)
+// Creates the recording record in the api-server DB.
 // ─────────────────────────────────────────
 async function notifyApiServer(data) {
   const response = await fetch(`${config.apiServer.url}/api/recordings/internal`, {
@@ -210,11 +213,23 @@ async function notifyApiServer(data) {
 }
 
 // ─────────────────────────────────────────
-// HELPER: Clean up temp files
+// cleanupTransientFiles(workspace)
+// Removes segment and concat files from the workspace
+// but preserves final.mp4 so the public URL stays valid.
 // ─────────────────────────────────────────
-function cleanup(concatList, outputPath) {
-  try { fs.unlinkSync(concatList); } catch {}
-  try { fs.unlinkSync(outputPath); } catch {}
+function cleanupTransientFiles(workspace) {
+  if (!fs.existsSync(workspace)) return;
+  for (const file of fs.readdirSync(workspace)) {
+    if (file === 'final.mp4') continue;
+    try { fs.unlinkSync(path.join(workspace, file)); } catch {}
+  }
+}
+
+// ─────────────────────────────────────────
+// hasActiveSession(streamId)
+// ─────────────────────────────────────────
+function hasActiveSession(streamId) {
+  return sessions.has(streamId);
 }
 
 // ─────────────────────────────────────────
@@ -225,52 +240,13 @@ router.get('/health', (_req, res) => {
     success: true,
     service: 'recorder',
     status: 'ok',
-    activeRecordings: Array.from(activeRecordings.keys()),
+    activeSessions: Array.from(sessions.keys()),
     timestamp: new Date().toISOString(),
   });
 });
 
-// ─────────────────────────────────────────
-// POST /recorder/start
-// Internal — starts recording a stream.
-// Body: { streamId, eventId, streamTitle }
-// ─────────────────────────────────────────
-router.post('/start', async (req, res) => {
-  const { streamId, eventId, streamTitle } = req.body;
-
-  if (!streamId) {
-    return res.status(400).json({ success: false, error: 'streamId is required' });
-  }
-
-  try {
-    // Start recording in background (don't block the response)
-    startRecording(streamId, { eventId, streamTitle }).catch((err) => {
-      console.error(`[Recorder] Background recording failed for ${streamId}:`, err.message);
-    });
-
-    res.json({ success: true, message: `Recording started for ${streamId}` });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// ─────────────────────────────────────────
-// POST /recorder/stop
-// Internal — stops an active recording.
-// Body: { streamId }
-// ─────────────────────────────────────────
-router.post('/stop', (req, res) => {
-  const { streamId } = req.body;
-
-  if (!streamId) {
-    return res.status(400).json({ success: false, error: 'streamId is required' });
-  }
-
-  stopRecording(streamId);
-
-  res.json({ success: true, message: `Recording stop requested for ${streamId}` });
-});
-
 module.exports = router;
-module.exports.startRecording = startRecording;
-module.exports.stopRecording = stopRecording;
+module.exports.startSession = startSession;
+module.exports.endSession = endSession;
+module.exports.snapshotSlot = snapshotSlot;
+module.exports.hasActiveSession = hasActiveSession;

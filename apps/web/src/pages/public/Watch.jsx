@@ -12,7 +12,7 @@ import { sendMessage as sendChatMessage, deleteMessage as deleteChatMessage } fr
 
 export default function Watch() {
   const stream = useStream();
-  const chat = useChat(stream.event_id);
+  const chat = useChat(stream.id);
   const { isAuthenticated, isAdmin } = useAuth();
   const [quality, setQuality] = useState('auto');
 
@@ -23,9 +23,9 @@ export default function Watch() {
 
   const handleSend = useCallback(async (text) => {
     try {
-      await sendChatMessage({ message: text, stream_id: stream.event_id });
+      await sendChatMessage({ message: text, stream_id: stream.id });
     } catch {}
-  }, [stream.event_id]);
+  }, [stream.id]);
 
   const handleDelete = useCallback(async (messageId) => {
     try {
@@ -43,7 +43,7 @@ export default function Watch() {
             {/* Main video area */}
             <div className="flex-1 min-w-0">
               {stream.isLive ? (
-                <VideoPlayer src={hlsSrc} />
+                <VideoPlayer key={stream.activeCamera || 'cam1'} src={hlsSrc} quality={quality} />
               ) : stream.startedAt ? (
                 <div className="aspect-video bg-black rounded-lg flex items-center justify-center">
                   <div className="text-center">
@@ -79,7 +79,7 @@ export default function Watch() {
                 isAuthenticated={isAuthenticated}
                 isAdmin={isAdmin}
                 chatEnabled={stream.chatEnabled}
-                streamId={stream.event_id}
+                streamId={stream.id}
               />
             </div>
           </div>

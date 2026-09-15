@@ -1,0 +1,38 @@
+# ============================================================
+# Movement Stream — Local override for THIS machine
+# ============================================================
+# The host already runs services on port 80 (nginx) and 5432
+# (Postgres); the base compose maps to free ports (8081 / 5437).
+# This override pins the DB image, opens the API to all interfaces,
+# and bakes the edge-fronted URLs into the web build.
+#
+# Usage:
+#   docker compose -f infra/docker-compose.yml \
+#                 -f infra/docker-compose.local.yml up --build
+#
+# App:            http://localhost:8081
+# API + WS:       http://localhost:8081/api  /  ws://localhost:8081/ws
+# HLS:            http://localhost:8081/hls
+# Media (ingest): http://localhost:8081/ingest
+# Postgres (host):localhost:5437
+# ============================================================
+
+services:
+  postgres:
+    # Use the pre-pulled alpine tag to avoid re-downloading postgres:15
+    image: postgres:15-alpine
+
+  api-server:
+    environment:
+      HOST: 0.0.0.0
+      CORS_ORIGIN: http://localhost:8081
+      STREAM_PUBLIC_URL: http://localhost:8081
+
+  web:
+    build:
+      context: ../apps/web
+      args:
+        VITE_API_URL: http://localhost:8081
+        VITE_WS_URL: ws://localhost:8081/ws
+        VITE_HLS_URL: http://localhost:8081/hls
+        VITE_MEDIA_SERVER_URL: http://localhost:8081

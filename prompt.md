@@ -221,8 +221,10 @@ movement-stream/
 │       └── package.json
 │
 ├── infra/
-│   ├── nginx.conf
+│   ├── nginx.conf            # Production HTTPS config (nginx container)
+│   ├── nginx.dev.conf        # Development HTTP-only config
 │   ├── docker-compose.yml
+│   ├── docker-compose.prod.yml
 │   └── postgres/
 │       ├── 001_create_users.sql
 │       ├── 002_create_events.sql
@@ -418,7 +420,7 @@ Stores active refresh tokens for JWT auth.
 ### PHASE 5 — AUTOMATION + DEPLOYMENT
 - Step 25: Social media services + scheduler (Facebook, WhatsApp, Twitter posting + node-cron) ✅
 - Step 26: Docker Compose setup ✅
-- Step 27: Nginx final configuration
+- Step 27: Nginx final configuration ✅
 - Step 28: VPS deployment guide
 - Step 29: End-to-end testing
 
@@ -426,9 +428,9 @@ Stores active refresh tokens for JWT auth.
 
 ## CURRENT STATUS
 
-**Last completed step:** Step 26 — Docker Compose setup (Dockerfiles for api/media/web + compose + compose.prod)
-**Currently working on:** Phase 5 — Automation + Deployment (Step 27: Nginx final configuration)
-**Next action:** Wait for permission to begin Step 27
+**Last completed step:** Step 27 — Nginx final configuration (production HTTPS nginx.conf + nginx.dev.conf)
+**Currently working on:** Phase 5 — Automation + Deployment (Step 28: VPS deployment guide)
+**Next action:** Wait for permission to begin Step 28
 
 ---
 

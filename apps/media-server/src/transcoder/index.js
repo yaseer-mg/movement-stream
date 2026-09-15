@@ -7,8 +7,10 @@ const { config } = require('../config');
 const router = Router();
 
 // ─────────────────────────────────────────
-// Quality presets for adaptive bitrate streaming
-// Each preset defines resolution, bitrate, and FFmpeg scaling.
+// Quality presets for adaptive bitrate streaming.
+// Each quality runs as its own FFmpeg process so we
+// sidestep FFmpeg's multi-HLS-muxer truncation bug
+// (only the first -f hls output receives full segments).
 // ─────────────────────────────────────────
 const QUALITY_PRESETS = [
   { name: '1080p', width: 1920, height: 1080, bitrate: '4000k', maxrate: '4200k', bufsize: '6000k' },
@@ -18,159 +20,241 @@ const QUALITY_PRESETS = [
 ];
 
 // ─────────────────────────────────────────
-// Active FFmpeg processes: slot → [{ process, quality }]
-// Used to kill processes when stream ends or camera switches.
+// Active FFmpeg process groups: slot → entry
+// entry = { slot, processes: [child...], stdins: [Writable...] }
 // ─────────────────────────────────────────
 const activeProcesses = new Map();
 
+function slotDir(slot, quality) {
+  return path.join(config.hls.outputPath, slot, quality);
+}
+
+// ─────────────────────────────────────────
+// buildProcessArgs(slot, preset)
+// Returns the CLI args for ONE FFmpeg process that reads
+// webm (matroska) from pipe:0 and writes a single HLS
+// rendition for the given preset.
+// ─────────────────────────────────────────
+function buildProcessArgs(slot, preset) {
+  const outputDir = slotDir(slot, preset.name);
+  const segmentPattern = path.join(outputDir, 'stream_%03d.ts');
+  const playlistPath = path.join(outputDir, 'stream.m3u8');
+
+  return [
+    '-hide_banner',
+    '-nostdin',
+    '-y',
+
+    // ─── Input: webm (matroska) from stdin ───
+    '-f', 'matroska',
+    '-probesize', '512000',
+    '-analyzeduration', '0',
+    '-i', 'pipe:0',
+
+    // ─── Video encoding ───
+    '-map', '0:v:0',
+    '-map', '0:a?',
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-tune', 'zerolatency',
+    '-profile:v', 'main',
+    '-level', '4.1',
+    '-b:v', preset.bitrate,
+    '-maxrate', preset.maxrate,
+    '-bufsize', preset.bufsize,
+    '-r', '30',
+    '-fps_mode', 'cfr',
+    '-g', '60',
+    '-keyint_min', '60',
+    '-sc_threshold', '0',
+    '-vf', `scale=${preset.width}:${preset.height}:force_original_aspect_ratio=decrease,pad=${preset.width}:${preset.height}:(ow-iw)/2:(oh-ih)/2`,
+
+    // ─── Audio encoding ───
+    '-c:a', 'aac',
+    '-b:a', '128k',
+    '-ar', '48000',
+
+    // ─── HLS output (keep-all segments for recording) ───
+    '-f', 'hls',
+    '-hls_time', '2',
+    '-hls_list_size', '0',
+    '-hls_flags', 'temp_file+independent_segments',
+    '-hls_allow_cache', '0',
+    '-hls_segment_filename', segmentPattern,
+    playlistPath,
+  ];
+}
+
+// ─────────────────────────────────────────
+// clearSlotHls(slot)
+// Removes a slot's previous HLS output so a reconnecting
+// camera starts with a clean playlist. Safe because any
+// session that needed those segments already snapshotted
+// them into the recording workspace at switch/end time.
+// ─────────────────────────────────────────
+function clearSlotHls(slot) {
+  const hlsBase = config.hls.outputPath;
+  if (!fs.existsSync(hlsBase)) return;
+
+  for (const preset of QUALITY_PRESETS) {
+    const dir = path.join(hlsBase, slot, preset.name);
+    if (!fs.existsSync(dir)) continue;
+
+    for (const file of fs.readdirSync(dir)) {
+      try { fs.unlinkSync(path.join(dir, file)); } catch {}
+    }
+  }
+  for (const file of ['master.m3u8']) {
+    const p = path.join(hlsBase, file);
+    if (fs.existsSync(p)) {
+      try { fs.unlinkSync(p); } catch {}
+    }
+  }
+  console.log(`[Transcoder] Cleared HLS output for ${slot}`);
+}
+
 // ─────────────────────────────────────────
 // startTranscoding(slot)
-// Spawns 4 FFmpeg processes (one per quality level).
-// Each reads raw YUV420P video from stdin and outputs HLS segments.
-//
-// The caller (WHIP endpoint) writes raw video frames to the
-// stdin of the returned write stream.
+// Spawns four FFmpeg processes (one per quality level),
+// each reading webm from its own stdin. Returns the entry
+// whose stdins the ingest route writes (tees) to.
 // ─────────────────────────────────────────
 function startTranscoding(slot) {
-  // Ensure HLS output directories exist
-  const hlsBase = config.hls.outputPath;
-  for (const preset of QUALITY_PRESETS) {
-    const dir = path.join(hlsBase, preset.name);
-    fs.mkdirSync(dir, { recursive: true });
+  if (activeProcesses.has(slot)) {
+    stopTranscoding(slot);
   }
 
+  clearSlotHls(slot);
+
   const processes = [];
+  const stdins = [];
 
   for (const preset of QUALITY_PRESETS) {
-    const outputDir = path.join(hlsBase, preset.name);
-    const segmentPattern = path.join(outputDir, 'stream_%03d.ts');
-    const playlistPath = path.join(outputDir, 'stream.m3u8');
-
-    const args = [
-      // ─── Input: raw video from stdin ───
-      '-f', 'rawvideo',
-      '-pix_fmt', 'yuv420p',
-      '-s', `${preset.width}x${preset.height}`,
-      '-r', '30',                     // 30 fps
-      '-i', 'pipe:0',                 // read from stdin
-
-      // ─── Video encoding ───
-      '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-tune', 'zerolatency',
-      '-profile:v', 'main',
-      '-level', '4.1',
-      '-b:v', preset.bitrate,
-      '-maxrate', preset.maxrate,
-      '-bufsize', preset.bufsize,
-      '-g', '60',                     // keyframe every 2 seconds (30fps * 2)
-      '-keyint_min', '60',
-      '-sc_threshold', '0',
-
-      // ─── Scale to target resolution ───
-      '-vf', `scale=${preset.width}:${preset.height}:force_original_aspect_ratio=decrease,pad=${preset.width}:${preset.height}:(ow-iw)/2:(oh-ih)/2`,
-
-      // ─── HLS output ───
-      '-f', 'hls',
-      '-hls_time', '2',               // 2-second segments
-      '-hls_list_size', '10',         // keep last 10 segments (rolling window)
-      '-hls_flags', 'delete_segments+append_list',
-      '-hls_segment_filename', segmentPattern,
-      playlistPath,
-    ];
-
+    const args = buildProcessArgs(slot, preset);
     const ffmpeg = spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'] });
 
-    // Log FFmpeg errors but don't crash the server
-    let stderrOutput = '';
+    processes.push(ffmpeg);
+    stdins.push(ffmpeg.stdin);
+
     ffmpeg.stderr.on('data', (chunk) => {
-      stderrOutput += chunk.toString();
-      // Log every 5 seconds to avoid flooding
-      if (stderrOutput.length > 1000) {
-        console.log(`[${slot}/${preset.name}] ffmpeg: ${stderrOutput.slice(-200)}`);
-        stderrOutput = '';
+      const line = chunk.toString().trim().split('\n').pop();
+      if (line && line.length > 80) {
+        console.log(`[Transcoder][${slot}/${preset.name}] ${line.slice(-160)}`);
       }
     });
 
     ffmpeg.on('error', (err) => {
-      console.error(`[${slot}/${preset.name}] FFmpeg failed to start:`, err.message);
+      console.error(`[Transcoder][${slot}/${preset.name}] FFmpeg failed to start:`, err.message);
     });
 
     ffmpeg.on('close', (code) => {
-      console.log(`[${slot}/${preset.name}] FFmpeg exited with code ${code}`);
+      console.log(`[Transcoder][${slot}/${preset.name}] FFmpeg exited with code ${code}`);
+      maybeCleanupSlot(slot);
     });
 
-    processes.push({ process: ffmpeg, quality: preset.name, stdin: ffmpeg.stdin });
-    console.log(`[${slot}/${preset.name}] FFmpeg started → ${playlistPath}`);
+    // Swallow broken-pipe errors — the browser may disappear mid-stream.
+    ffmpeg.stdin.on('error', () => {});
   }
 
-  activeProcesses.set(slot, processes);
-  return processes;
+  const entry = { slot, processes, stdins, createdAt: new Date() };
+  activeProcesses.set(slot, entry);
+
+  console.log(`[Transcoder] Started 4-rendition pipeline for ${slot}`);
+  return entry;
+}
+
+// ─────────────────────────────────────────
+// maybeCleanupSlot(slot)
+// Removes the slot entry once all four processes exit.
+// ─────────────────────────────────────────
+function maybeCleanupSlot(slot) {
+  const entry = activeProcesses.get(slot);
+  if (!entry) return;
+
+  const allExited = entry.processes.every((p) => p.exitCode !== null && p.exitCode !== undefined);
+  if (allExited) {
+    activeProcesses.delete(slot);
+    console.log(`[Transcoder] All renders exited for ${slot}`);
+  }
+}
+
+// ─────────────────────────────────────────
+// writeToSlot(slot, chunk)
+// Tees a chunk to every live FFmpeg stdin. Returns true if
+// every stream accepted it (respects backpressure upstream).
+// ─────────────────────────────────────────
+function writeToSlot(slot, chunk) {
+  const entry = activeProcesses.get(slot);
+  if (!entry) return false;
+
+  let allAccepted = true;
+  for (const stdin of entry.stdins) {
+    if (stdin.destroyed) continue;
+    const accepted = stdin.write(chunk);
+    if (!accepted) allAccepted = false;
+  }
+  return allAccepted;
+}
+
+// ─────────────────────────────────────────
+// endSlot(slot)
+// Signals end-of-stream to every FFmpeg stdin so they
+// finalize their HLS playlists, then force-kills after a
+// short grace period if they linger.
+// ─────────────────────────────────────────
+function endSlot(slot) {
+  const entry = activeProcesses.get(slot);
+  if (!entry) return;
+
+  for (const stdin of entry.stdins) {
+    try { stdin.end(); } catch {}
+  }
+  console.log(`[Transcoder] End-of-stream sent for ${slot}`);
 }
 
 // ─────────────────────────────────────────
 // stopTranscoding(slot)
-// Kills all FFmpeg processes for a camera slot.
-// Called when camera disconnects or stream ends.
+// Ends all stdins gracefully (flushes the last HLS segment),
+// then force-kills any lingering process after a grace period.
 // ─────────────────────────────────────────
 function stopTranscoding(slot) {
-  const processes = activeProcesses.get(slot);
-  if (!processes) return;
+  const entry = activeProcesses.get(slot);
+  if (!entry) return;
 
-  for (const { process: ffmpeg, quality } of processes) {
-    try {
-      // Close stdin first so FFmpeg can finish writing
-      ffmpeg.stdin.end();
-      // Give it 2 seconds to finish, then force kill
-      setTimeout(() => {
+  endSlot(slot);
+
+  setTimeout(() => {
+    for (const ffmpeg of entry.processes) {
+      if (!ffmpeg.killed) {
         try { ffmpeg.kill('SIGTERM'); } catch {}
-      }, 2000);
-      console.log(`[${slot}/${quality}] Stopping FFmpeg`);
-    } catch (err) {
-      console.error(`[${slot}/${quality}] Error stopping FFmpeg:`, err.message);
+      }
     }
-  }
+  }, 2000);
 
-  activeProcesses.delete(slot);
+  console.log(`[Transcoder] Stop requested for ${slot}`);
 }
 
 // ─────────────────────────────────────────
 // stopAllTranscoding()
-// Kills all FFmpeg processes. Called when stream ends.
 // ─────────────────────────────────────────
 function stopAllTranscoding() {
-  for (const slot of activeProcesses.keys()) {
+  for (const slot of Array.from(activeProcesses.keys())) {
     stopTranscoding(slot);
   }
-}
-
-// ─────────────────────────────────────────
-// getStdin(slot, quality)
-// Returns the stdin writable stream for a specific quality level.
-// The WHIP endpoint writes raw YUV420P frames to this stream.
-// ─────────────────────────────────────────
-function getStdin(slot, quality) {
-  const processes = activeProcesses.get(slot);
-  if (!processes) return null;
-  const proc = processes.find((p) => p.quality === quality);
-  return proc ? proc.stdin : null;
 }
 
 // ─────────────────────────────────────────
 // GET /transcoder/health
 // ─────────────────────────────────────────
 router.get('/health', (_req, res) => {
-  const active = [];
-  for (const [slot, processes] of activeProcesses) {
-    active.push({
-      slot,
-      processes: processes.map((p) => ({
-        quality: p.quality,
-        pid: p.process.pid,
-        running: !p.process.killed,
-      })),
-    });
-  }
+  const active = Array.from(activeProcesses.entries()).map(([slot, entry]) => ({
+    slot,
+    processes: entry.processes.map((p) => ({
+      pid: p.pid,
+      running: !p.killed && p.exitCode === null && p.exitCode === undefined,
+      exitCode: p.exitCode,
+    })),
+  }));
 
   res.json({
     success: true,
@@ -181,61 +265,11 @@ router.get('/health', (_req, res) => {
   });
 });
 
-// ─────────────────────────────────────────
-// POST /transcoder/start
-// Internal — starts transcoding for a camera slot.
-// Called by the WHIP endpoint when a camera connects.
-// ─────────────────────────────────────────
-router.post('/start', (req, res) => {
-  const { slot } = req.body;
-
-  if (!slot || !['cam1', 'cam2', 'cam3'].includes(slot)) {
-    return res.status(400).json({ success: false, error: 'Valid slot required (cam1/cam2/cam3)' });
-  }
-
-  if (activeProcesses.has(slot)) {
-    return res.status(409).json({ success: false, error: `Transcoding already active for ${slot}` });
-  }
-
-  const processes = startTranscoding(slot);
-
-  res.json({
-    success: true,
-    data: {
-      slot,
-      qualities: processes.map((p) => p.quality),
-    },
-  });
-});
-
-// ─────────────────────────────────────────
-// POST /transcoder/stop
-// Internal — stops transcoding for a camera slot.
-// ─────────────────────────────────────────
-router.post('/stop', (req, res) => {
-  const { slot } = req.body;
-
-  if (!slot) {
-    return res.status(400).json({ success: false, error: 'slot is required' });
-  }
-
-  stopTranscoding(slot);
-
-  res.json({ success: true, message: `Transcoding stopped for ${slot}` });
-});
-
-// ─────────────────────────────────────────
-// POST /transcoder/stop-all
-// Internal — stops all transcoding (stream ended).
-// ─────────────────────────────────────────
-router.post('/stop-all', (_req, res) => {
-  stopAllTranscoding();
-  res.json({ success: true, message: 'All transcoding stopped' });
-});
-
 module.exports = router;
 module.exports.startTranscoding = startTranscoding;
 module.exports.stopTranscoding = stopTranscoding;
 module.exports.stopAllTranscoding = stopAllTranscoding;
-module.exports.getStdin = getStdin;
+module.exports.writeToSlot = writeToSlot;
+module.exports.endSlot = endSlot;
 module.exports.activeProcesses = activeProcesses;
+module.exports.QUALITY_PRESETS = QUALITY_PRESETS;

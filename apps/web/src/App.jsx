@@ -14,6 +14,7 @@ import CameraMixer from './pages/admin/CameraMixer';
 import AdminEvents from './pages/admin/Events';
 import ChatMod from './pages/admin/ChatMod';
 import AdminRecordings from './pages/admin/AdminRecordings';
+import ProtectedRoute from './components/ui/ProtectedRoute';
 
 export default function App() {
   return (
@@ -29,14 +30,70 @@ export default function App() {
         <Route path="/login" element={<Login />} />
 
         {/* Admin routes */}
-        <Route path="/admin" element={<Dashboard />} />
-        <Route path="/admin/studio" element={<Studio />} />
-        <Route path="/admin/mixer" element={<CameraMixer />} />
-        <Route path="/admin/events" element={<AdminEvents />} />
-        <Route path="/admin/events/new" element={<AdminEvents />} />
-        <Route path="/admin/events/:id" element={<AdminEvents />} />
-        <Route path="/admin/chat" element={<ChatMod />} />
-        <Route path="/admin/recordings" element={<AdminRecordings />} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute requireAdmin>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/studio"
+          element={
+            <ProtectedRoute requireSuperAdmin>
+              <Studio />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/mixer"
+          element={
+            <ProtectedRoute requireAdmin>
+              <CameraMixer />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/events"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AdminEvents />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/events/new"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AdminEvents />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/events/:id"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AdminEvents />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/chat"
+          element={
+            <ProtectedRoute requireAdmin>
+              <ChatMod />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/recordings"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AdminRecordings />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

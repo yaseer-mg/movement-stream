@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS stream_status (
 
 -- ⚠️ INSERT the single control row immediately after table creation.
 -- The entire platform reads and updates THIS row.
+-- Guarded so it stays a single row even when migrations re-run.
 INSERT INTO stream_status (is_live, chat_enabled)
-VALUES (false, true)
+SELECT false, true
+WHERE NOT EXISTS (SELECT 1 FROM stream_status)
 ON CONFLICT DO NOTHING;

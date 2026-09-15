@@ -83,6 +83,7 @@ services:
       - web_build:/var/www/movement-stream:ro
       - hls_data:/var/hls:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
     depends_on:
       - api-server
       - media-server
@@ -94,3 +95,4 @@ volumes:
   hls_data:
   recordings_temp:
   web_build:
+  certbot_www:

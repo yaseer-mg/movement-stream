@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 export const useStreamStore = create((set) => ({
+  id: null,
   isLive: false,
   title: null,
   description: null,
@@ -14,6 +15,7 @@ export const useStreamStore = create((set) => ({
 
   setStreamStatus: (status) =>
     set({
+      id: status.id,
       isLive: status.is_live,
       title: status.title,
       description: status.description,

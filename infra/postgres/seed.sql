@@ -15,31 +15,31 @@
 INSERT INTO users (email, password_hash, display_name, role) VALUES
   (
     'superadmin@movement.ng',
-    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- Test1234!
+    '$2b$10$riMCt2uiBBdiWJWLCSKcYerQ4vPsUmMgvg8dngXFVXjpVAaj11VAi', -- Test1234!
     'Super Admin',
     'super_admin'
   ),
   (
     'admin@movement.ng',
-    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    '$2b$10$riMCt2uiBBdiWJWLCSKcYerQ4vPsUmMgvg8dngXFVXjpVAaj11VAi',
     'Admin User',
     'admin'
   ),
   (
     'cam1@movement.ng',
-    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    '$2b$10$riMCt2uiBBdiWJWLCSKcYerQ4vPsUmMgvg8dngXFVXjpVAaj11VAi',
     'Camera Op 1',
     'camera_op'
   ),
   (
     'cam2@movement.ng',
-    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    '$2b$10$riMCt2uiBBdiWJWLCSKcYerQ4vPsUmMgvg8dngXFVXjpVAaj11VAi',
     'Camera Op 2',
     'camera_op'
   ),
   (
     'viewer@movement.ng',
-    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    '$2b$10$riMCt2uiBBdiWJWLCSKcYerQ4vPsUmMgvg8dngXFVXjpVAaj11VAi',
     'Test Viewer',
     'viewer'
   )

@@ -1,8 +1,9 @@
 import { useRef, useEffect, useState } from "react";
 import Hls from "hls.js";
 
-export default function VideoPlayer({ src, poster, onError, autoPlay = true }) {
+export default function VideoPlayer({ src, poster, onError, autoPlay = true, quality = 'auto' }) {
   const videoRef = useRef(null);
+  const hlsRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -19,8 +20,10 @@ export default function VideoPlayer({ src, poster, onError, autoPlay = true }) {
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
       });
+      hlsRef.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => applyQuality(hls, quality));
       hls.on(Hls.Events.ERROR, (event, data) => {
         if (data.fatal) {
           switch (data.type) {
@@ -43,9 +46,24 @@ export default function VideoPlayer({ src, poster, onError, autoPlay = true }) {
     return () => {
       if (hls) {
         hls.destroy();
+        hlsRef.current = null;
       }
     };
-  }, [src, onError]);
+  }, [src, quality, onError]);
+
+  useEffect(() => {
+    if (hlsRef.current) applyQuality(hlsRef.current, quality);
+  }, [quality]);
+
+  function applyQuality(hls, q) {
+    if (q === "auto") {
+      hls.currentLevel = -1;
+      return;
+    }
+    const targetHeight = parseInt(q, 10);
+    const levelIndex = hls.levels.findIndex((l) => Math.abs(l.height - targetHeight) < 100);
+    if (levelIndex >= 0) hls.currentLevel = levelIndex;
+  }
 
   const toggleFullscreen = () => {
     const el = videoRef.current;

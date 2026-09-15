@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('node:http');
 
 const { config } = require('./config');
-const whipRouter = require('./whip');
+const ingestRouter = require('./ingest');
 const mixerRouter = require('./mixer');
 const transcoderRouter = require('./transcoder');
 const packagerRouter = require('./packager');
@@ -14,8 +14,6 @@ app.use(express.json());
 
 // ─────────────────────────────────────────
 // Internal auth middleware
-// The api-server uses this header when calling
-// the media-server internally.
 // ─────────────────────────────────────────
 function requireInternalAuth(req, res, next) {
   const secret = req.headers['x-media-secret'];
@@ -37,15 +35,14 @@ app.get('/health', (_req, res) => {
 });
 
 // ─────────────────────────────────────────
-// Internal routes (called by api-server only)
-// Protected by x-media-secret header
+// Internal routes — protected by x-media-secret
 // ─────────────────────────────────────────
 app.use('/internal', requireInternalAuth, mixerRouter);
 
 // ─────────────────────────────────────────
-// Public routes (called by broadcaster browsers)
+// Public routes — called by broadcaster browsers
 // ─────────────────────────────────────────
-app.use('/whip', whipRouter);
+app.use('/ingest', ingestRouter);
 app.use('/transcoder', transcoderRouter);
 app.use('/packager', packagerRouter);
 app.use('/recorder', recorderRouter);

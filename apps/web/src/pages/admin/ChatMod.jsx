@@ -46,8 +46,9 @@ function ChatModMessage({ message, onDelete }) {
 }
 
 export default function ChatMod() {
-  const { isLive, chatEnabled } = useStream();
-  const { messages } = useChatMod(isLive ? 'live' : null);
+  const stream = useStream();
+  const { isLive, chatEnabled } = stream;
+  const { messages } = useChatMod(stream.id);
   const [toggling, setToggling] = useState(false);
 
   const handleToggleChat = async () => {

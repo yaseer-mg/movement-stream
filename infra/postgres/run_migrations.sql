@@ -10,34 +10,34 @@
 -- ============================================================
 
 \echo '>>> Running Migration 001: Users...'
-\i 001_create_users.sql
+\ir 001_create_users.sql
 
 \echo '>>> Running Migration 002: Events...'
-\i 002_create_events.sql
+\ir 002_create_events.sql
 
 \echo '>>> Running Migration 003: Stream Status...'
-\i 003_create_stream_status.sql
+\ir 003_create_stream_status.sql
 
 \echo '>>> Running Migration 004: Cameras...'
-\i 004_create_cameras.sql
+\ir 004_create_cameras.sql
 
 \echo '>>> Running Migration 005: Chat Messages...'
-\i 005_create_chat.sql
+\ir 005_create_chat.sql
 
 \echo '>>> Running Migration 006: Recordings...'
-\i 006_create_recordings.sql
+\ir 006_create_recordings.sql
 
 \echo '>>> Running Migration 007: Analytics...'
-\i 007_create_analytics.sql
+\ir 007_create_analytics.sql
 
 \echo '>>> Running Migration 008: Refresh Tokens...'
-\i 008_create_refresh_tokens.sql
+\ir 008_create_refresh_tokens.sql
 
 \echo '>>> Running Migration 009: App Role Permissions...'
-\i 009_grant_app_permissions.sql
+\ir 009_grant_app_permissions.sql
 
 \echo '>>> Running Migration 010: Repair Refresh Token Schema...'
-\i 010_repair_refresh_tokens_schema.sql
+\ir 010_repair_refresh_tokens_schema.sql
 
 \echo ''
 \echo '✅ All migrations complete. Database is ready.'
