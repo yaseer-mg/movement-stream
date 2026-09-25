@@ -46,6 +46,14 @@ INSERT INTO users (email, password_hash, display_name, role) VALUES
 ON CONFLICT (email) DO NOTHING;
 
 -- ─────────────────────────────────────────
+-- LINK CAMERA OPERATORS TO SLOTS
+-- cam1@ / cam2@ own their matching slot so the
+-- camera_op role can control them via /api/camera/*.
+-- ─────────────────────────────────────────
+UPDATE cameras SET operator_id = (SELECT id FROM users WHERE email = 'cam1@movement.ng') WHERE slot = 'cam1';
+UPDATE cameras SET operator_id = (SELECT id FROM users WHERE email = 'cam2@movement.ng') WHERE slot = 'cam2';
+
+-- ─────────────────────────────────────────
 -- SEED EVENTS
 -- ─────────────────────────────────────────
 INSERT INTO events (title, description, location, starts_at, ends_at, status, is_featured, created_by)

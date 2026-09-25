@@ -65,7 +65,7 @@ api.interceptors.response.use(
 
       if (!refreshToken) {
         clearTokens();
-        window.location.href = '/login';
+        processQueue(error);
         return Promise.reject(error);
       }
 
@@ -84,7 +84,6 @@ api.interceptors.response.use(
       } catch {
         clearTokens();
         processQueue(error);
-        window.location.href = '/login';
         return Promise.reject(error);
       } finally {
         isRefreshing = false;
