@@ -14,6 +14,7 @@ import CameraMixer from './pages/admin/CameraMixer';
 import AdminEvents from './pages/admin/Events';
 import ChatMod from './pages/admin/ChatMod';
 import AdminRecordings from './pages/admin/AdminRecordings';
+import CameraOp from './pages/admin/CameraOp';
 import ProtectedRoute from './components/ui/ProtectedRoute';
 
 export default function App() {
@@ -91,6 +92,16 @@ export default function App() {
           element={
             <ProtectedRoute requireAdmin>
               <AdminRecordings />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Camera operator route */}
+        <Route
+          path="/camera"
+          element={
+            <ProtectedRoute requireCameraAccess>
+              <CameraOp />
             </ProtectedRoute>
           }
         />

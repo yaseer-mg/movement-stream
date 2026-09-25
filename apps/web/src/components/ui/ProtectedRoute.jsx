@@ -1,12 +1,20 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../../context/AuthContext';
 
+function homeForRole(user) {
+  const role = user?.role;
+  if (role === 'super_admin' || role === 'admin') return '/admin';
+  if (role === 'camera_op') return '/camera';
+  return '/';
+}
+
 export default function ProtectedRoute({
   children,
   requireAdmin = false,
   requireSuperAdmin = false,
+  requireCameraAccess = false,
 }) {
-  const { loading, isAuthenticated, isAdmin, isSuperAdmin } = useAuthContext();
+  const { loading, isAuthenticated, isAdmin, isSuperAdmin, user } = useAuthContext();
   const location = useLocation();
 
   if (loading) {
@@ -21,12 +29,18 @@ export default function ProtectedRoute({
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
+  const isCameraAccess = isAdmin || isSuperAdmin || user?.role === 'camera_op';
+
   if (requireSuperAdmin && !isSuperAdmin) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to={homeForRole(user)} replace />;
   }
 
   if (requireAdmin && !isAdmin) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to={homeForRole(user)} replace />;
+  }
+
+  if (requireCameraAccess && !isCameraAccess) {
+    return <Navigate to={homeForRole(user)} replace />;
   }
 
   return children;

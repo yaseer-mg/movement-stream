@@ -21,7 +21,11 @@ export default function Login() {
     const role = user?.role;
     const dest =
       location.state?.from ||
-      (role === 'super_admin' || role === 'admin' ? '/admin' : '/');
+      (role === 'super_admin' || role === 'admin'
+        ? '/admin'
+        : role === 'camera_op'
+          ? '/camera'
+          : '/');
     navigate(dest, { replace: true });
   }, [isAuthenticated, user, navigate, location.state]);
 
@@ -29,7 +33,11 @@ export default function Login() {
     const role = user?.role;
     const dest =
       location.state?.from ||
-      (role === 'super_admin' || role === 'admin' ? '/admin' : '/');
+      (role === 'super_admin' || role === 'admin'
+        ? '/admin'
+        : role === 'camera_op'
+          ? '/camera'
+          : '/');
     return <Navigate to={dest} replace />;
   }
 

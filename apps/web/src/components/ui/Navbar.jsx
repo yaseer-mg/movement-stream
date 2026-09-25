@@ -26,9 +26,12 @@ export default function Navbar() {
             {isAuthenticated ? (
               <div className="flex items-center gap-2">
                 <span className="text-brand-light-dim text-sm hidden sm:block">{user.display_name}</span>
-                {isAdmin && (
-                  <Link to="/admin" className="px-3 py-1.5 rounded-md bg-brand-green text-white text-sm font-medium hover:bg-brand-green-light transition-colors">
-                    Admin
+                {(isAdmin || user.role === 'camera_op') && (
+                  <Link
+                    to={isAdmin ? '/admin' : '/camera'}
+                    className="px-3 py-1.5 rounded-md bg-brand-green text-white text-sm font-medium hover:bg-brand-green-light transition-colors"
+                  >
+                    {isAdmin ? 'Admin' : 'Camera'}
                   </Link>
                 )}
                 <button onClick={logout} className="px-3 py-1.5 rounded-md text-sm text-brand-light-dim hover:text-brand-light hover:bg-brand-surface transition-colors">
