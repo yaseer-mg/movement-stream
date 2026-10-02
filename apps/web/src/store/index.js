@@ -1,5 +1,23 @@
 import { create } from 'zustand';
 
+// Maps the store's camelCase fields onto the API/WS snake_case
+// names. Used by setStreamStatus so a partial payload (a broadcast
+// that carries only a few columns) updates just those fields
+// instead of blanking everything it omits.
+const STREAM_STATUS_FIELDS = [
+  ['id', 'id'],
+  ['isLive', 'is_live'],
+  ['title', 'title'],
+  ['description', 'description'],
+  ['event_id', 'event_id'],
+  ['activeCamera', 'active_camera'],
+  ['viewerCount', 'viewer_count'],
+  ['peakViewers', 'peak_viewers'],
+  ['chatEnabled', 'chat_enabled'],
+  ['startedAt', 'started_at'],
+  ['endedAt', 'ended_at'],
+];
+
 export const useStreamStore = create((set) => ({
   id: null,
   isLive: false,
@@ -13,19 +31,15 @@ export const useStreamStore = create((set) => ({
   startedAt: null,
   endedAt: null,
 
+  // Merges — undefined values in `status` are ignored. A WebSocket
+  // event that omits a field must never erase it from the store.
   setStreamStatus: (status) =>
-    set({
-      id: status.id,
-      isLive: status.is_live,
-      title: status.title,
-      description: status.description,
-      event_id: status.event_id,
-      activeCamera: status.active_camera,
-      viewerCount: status.viewer_count,
-      peakViewers: status.peak_viewers,
-      chatEnabled: status.chat_enabled,
-      startedAt: status.started_at,
-      endedAt: status.ended_at,
+    set((state) => {
+      const patch = {};
+      for (const [storeKey, apiKey] of STREAM_STATUS_FIELDS) {
+        if (status[apiKey] !== undefined) patch[storeKey] = status[apiKey];
+      }
+      return { ...state, ...patch };
     }),
 
   setIsLive: (isLive) => set({ isLive }),

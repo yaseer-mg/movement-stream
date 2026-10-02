@@ -1,52 +1,36 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useChatStore } from '../store';
 import { getChatHistory } from '../services/chat.service';
+import useWebSocket from './useWebSocket';
 
 export default function useChatMod(streamId) {
-  const store = useChatStore();
-  const wsRef = useRef(null);
+  const addMessage = useChatStore((s) => s.addMessage);
+  const markDeleted = useChatStore((s) => s.markDeleted);
+  const setMessages = useChatStore((s) => s.setMessages);
 
-  const connect = useCallback(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = import.meta.env.VITE_WS_URL || `${protocol}//localhost:4000/ws`;
-
-    try {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          switch (msg.type) {
-            case 'chat.message':
-              store.addMessage(msg.data);
-              break;
-            case 'chat.message_deleted':
-              store.markDeleted(msg.data.message_id);
-              break;
-          }
-        } catch {}
-      };
-
-      ws.onclose = () => {
-        wsRef.current = null;
-        setTimeout(connect, 5000);
-      };
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (streamId) {
-      getChatHistory(streamId).then(store.setMessages).catch(() => {});
+  const handleMessage = useCallback((msg) => {
+    switch (msg.type) {
+      case 'chat.message':
+        addMessage(msg.data);
+        break;
+      case 'chat.message_deleted':
+        markDeleted(msg.data.message_id);
+        break;
     }
-  }, [store, streamId]);
+  }, [addMessage, markDeleted]);
+
+  useWebSocket(handleMessage);
 
   useEffect(() => {
-    connect();
-    return () => {
-      if (wsRef.current) wsRef.current.close();
-    };
-  }, [connect]);
+    if (!streamId) return;
+    let cancelled = false;
+    getChatHistory(streamId)
+      .then((messages) => {
+        if (!cancelled) setMessages(messages);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [streamId, setMessages]);
 
-  return store;
+  return useChatStore();
 }

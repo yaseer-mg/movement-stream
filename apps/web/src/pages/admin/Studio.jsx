@@ -19,8 +19,8 @@ function formatDuration(startedAt) {
 
 export default function Studio() {
   const videoRef = useRef(null);
-  const { cameraReady, audioLevel, isLive, error, stream, startCamera, startScreenShare, goLive, endLive, clearError } = useWebRTC();
-  const { viewerCount, startedAt, isLive: streamLive, setStreamStatus } = useStream();
+  const { cameraReady, audioLevel, isLive, error, stream, liveSlot, startCamera, startScreenShare, goLive, endLive, clearError } = useWebRTC();
+  const { viewerCount, startedAt, isLive: streamLive } = useStream();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -80,11 +80,24 @@ export default function Studio() {
         <div className="flex-1 space-y-4">
           <CameraPreview stream={stream} mirrored={source === 'camera'} />
 
+          {/* If the broadcast outlived the previous mount of this page,
+              say so — otherwise the operator has no way to tell that the
+              stream is still going out while the buttons look idle. */}
+          {isLive && (
+            <div className="flex items-center gap-2 rounded-md border border-brand-green/30 bg-brand-green/10 px-3 py-2">
+              <span className="h-2 w-2 rounded-full bg-brand-green animate-pulse" />
+              <p className="text-brand-green text-xs">
+                Broadcasting from {liveSlot || 'cam1'} — this upload keeps running while you browse other pages.
+              </p>
+            </div>
+          )}
+
           {/* Source selector */}
           <div className="flex gap-2">
             <button
               onClick={handleStartCamera}
-              className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
+              disabled={isLive}
+              className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 source === 'camera' && cameraReady
                   ? 'border-brand-green text-brand-green bg-brand-green/10'
                   : 'border-brand-dark-border text-brand-light-dim hover:text-white hover:border-brand-light-dim'
@@ -94,7 +107,8 @@ export default function Studio() {
             </button>
             <button
               onClick={handleStartScreen}
-              className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors ${
+              disabled={isLive}
+              className={`flex-1 px-3 py-2 text-sm rounded-md border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 source === 'screen' && cameraReady
                   ? 'border-brand-green text-brand-green bg-brand-green/10'
                   : 'border-brand-dark-border text-brand-light-dim hover:text-white hover:border-brand-light-dim'

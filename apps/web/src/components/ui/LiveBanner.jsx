@@ -1,52 +1,46 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useStreamStore } from '../../store';
 import { getStreamStatus } from '../../services/stream.service';
+import useWebSocket from '../../hooks/useWebSocket';
 
 export default function LiveBanner() {
-  const { isLive, title, viewerCount, setIsLive, setStreamStatus } = useStreamStore();
-  const [hiding, setHiding] = useState(false);
-  const wsRef = useRef(null);
+  // Selector-based reads keep the callbacks below stable, so the
+  // status refetch doesn't re-run on every broadcast.
+  const isLive = useStreamStore((s) => s.isLive);
+  const title = useStreamStore((s) => s.title);
+  const viewerCount = useStreamStore((s) => s.viewerCount);
+  const setIsLive = useStreamStore((s) => s.setIsLive);
+  const setStreamStatus = useStreamStore((s) => s.setStreamStatus);
 
-  useEffect(() => {
+  const handleMessage = useCallback((msg) => {
+    switch (msg.type) {
+      case 'stream.live':
+        setStreamStatus({ ...msg.data, is_live: true });
+        break;
+      case 'stream.ended':
+        setIsLive(false);
+        break;
+      case 'stream.viewers_update':
+        useStreamStore.setState({ viewerCount: msg.data.viewer_count });
+        break;
+      case 'stream.camera_switch':
+        useStreamStore.setState({ activeCamera: msg.data.active_camera });
+        break;
+    }
+  }, [setIsLive, setStreamStatus]);
+
+  const handleOpen = useCallback(() => {
     getStreamStatus().then((status) => {
       if (status) setStreamStatus(status);
     }).catch(() => {});
+  }, [setStreamStatus]);
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = import.meta.env.VITE_WS_URL || `${protocol}//localhost:4000/ws`;
-    let ws;
+  useWebSocket(handleMessage, handleOpen);
 
-    try {
-      ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          switch (msg.type) {
-            case 'stream.live':
-              setStreamStatus({ ...msg.data, is_live: true });
-              setHiding(false);
-              break;
-            case 'stream.ended':
-              setIsLive(false);
-              break;
-            case 'stream.viewers_update':
-              useStreamStore.setState({ viewerCount: msg.data.viewer_count });
-              break;
-            case 'stream.camera_switch':
-              useStreamStore.setState({ activeCamera: msg.data.active_camera });
-              break;
-          }
-        } catch {}
-      };
-    } catch {}
-
-    return () => {
-      if (ws) ws.close();
-    };
-  }, []);
+  useEffect(() => {
+    handleOpen();
+  }, [handleOpen]);
 
   if (!isLive) return null;
 
