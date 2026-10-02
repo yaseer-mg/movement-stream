@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const connections = require('../connections');
 const { startTranscoding, stopTranscoding, stopAllTranscoding, activeProcesses } = require('../transcoder');
-const { generateMasterPlaylist } = require('../packager');
+const { generateMasterPlaylist, cleanupHlsDirectory } = require('../packager');
 const recorder = require('../recorder');
 
 const router = Router();
@@ -125,7 +125,19 @@ router.post('/mixer/start-all', (_req, res) => {
 // ─────────────────────────────────────────
 router.post('/mixer/stop-all', (_req, res) => {
   stopAllTranscoding();
-  res.json({ success: true, message: 'All transcoding stopped' });
+  // Defer the HLS cleanup: stopTranscoding force-kills FFmpeg after a
+  // 2s grace, and deleting the output dirs while a process is still
+  // flushing its last segment makes it exit 255 with
+  // "Failed to open file ... stream_000.ts.tmp".
+  setTimeout(() => {
+    try {
+      cleanupHlsDirectory();
+      console.log('[Mixer] HLS directory cleaned');
+    } catch (err) {
+      console.error('[Mixer] HLS cleanup failed:', err.message);
+    }
+  }, 3000);
+  res.json({ success: true, message: 'All transcoding stopped, HLS cleanup scheduled' });
 });
 
 // ─────────────────────────────────────────

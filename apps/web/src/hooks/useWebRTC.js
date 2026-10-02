@@ -1,47 +1,37 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { startStream, endStream as apiEndStream } from '../services/stream.service';
+import {
+  startBroadcast,
+  stopBroadcast,
+  isBroadcasting,
+  getBroadcastStream,
+  getBroadcastSlot,
+  subscribeBroadcast,
+} from '../lib/broadcast';
 
 export default function useWebRTC() {
   const streamRef = useRef(null);
   const audioCtxRef = useRef(null);
   const analyserRef = useRef(null);
   const animFrameRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const streamWriterRef = useRef(null);
-  const abortCtrlRef = useRef(null);
-  const ingestSlotRef = useRef('cam1');
 
+  // The stream lives in state, not just a ref: CameraPreview only
+  // re-attaches srcObject when this value actually changes identity.
+  const [stream, setStream] = useState(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
-  const [isLive, setIsLive] = useState(false);
+  const [isLive, setIsLive] = useState(isBroadcasting());
   const [error, setError] = useState(null);
 
-  const stopMediaRecorder = useCallback(() => {
-    const rec = mediaRecorderRef.current;
-    if (rec && rec.state !== 'inactive') {
-      try { rec.stop(); } catch {}
-    }
-  }, []);
-
-  const stopIngestStream = useCallback(() => {
-    if (streamWriterRef.current) {
-      try { streamWriterRef.current.close(); } catch {}
-      streamWriterRef.current = null;
-    }
-    if (abortCtrlRef.current) {
-      abortCtrlRef.current.abort();
-      abortCtrlRef.current = null;
-    }
-    mediaRecorderRef.current = null;
-  }, []);
-
   const cleanup = useCallback(() => {
-    stopMediaRecorder();
-    stopIngestStream();
-
-    if (streamRef.current) {
+    // Never stop a live broadcast here — it is owned by the
+    // module-scoped broadcast.js singleton so it survives page
+    // navigation (Studio → Camera Mixer → Dashboard). Only stop
+    // the local preview tracks when we're NOT broadcasting.
+    if (!isBroadcasting() && streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+      setStream(null);
     }
     if (audioCtxRef.current) {
       audioCtxRef.current.close();
@@ -54,9 +44,69 @@ export default function useWebRTC() {
     }
     setCameraReady(false);
     setAudioLevel(0);
-  }, [stopMediaRecorder, stopIngestStream]);
+  }, []);
+
+  // ─────────────────────────────────────────
+  // startAudioMeter(stream)
+  // Drives the level meter for whichever stream is currently
+  // previewed — including one adopted from a live broadcast.
+  // ─────────────────────────────────────────
+  const startAudioMeter = useCallback((source) => {
+    if (!source || source.getAudioTracks().length === 0) return;
+
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close();
+      audioCtxRef.current = null;
+      analyserRef.current = null;
+    }
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+
+    const ctx = new AudioContext();
+    audioCtxRef.current = ctx;
+    const node = ctx.createMediaStreamSource(source);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    node.connect(analyser);
+    analyserRef.current = analyser;
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const updateLevel = () => {
+      analyser.getByteFrequencyData(dataArray);
+      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+      setAudioLevel(avg / 255);
+      animFrameRef.current = requestAnimationFrame(updateLevel);
+    };
+    updateLevel();
+  }, []);
+
+  // ─────────────────────────────────────────
+  // Adopt a broadcast that started on a previous mount.
+  // Navigating Studio → Camera Mixer unmounts this hook, but the
+  // broadcast itself lives in the module singleton. Without this,
+  // coming back to Studio would claim "No camera connected" while
+  // the stream is actually still going out.
+  // ─────────────────────────────────────────
+  useEffect(() => {
+    const existing = getBroadcastStream();
+    if (existing && !streamRef.current) {
+      streamRef.current = existing;
+      setStream(existing);
+      setCameraReady(true);
+      startAudioMeter(existing);
+    }
+  }, [startAudioMeter]);
+
+  // Keep isLive truthful even when the socket dies on its own.
+  useEffect(() => subscribeBroadcast((on) => setIsLive(on)), []);
 
   const startCamera = useCallback(async (videoEl) => {
+    if (isBroadcasting()) {
+      setError('End the current broadcast before switching source');
+      return null;
+    }
     cleanup();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -64,35 +114,22 @@ export default function useWebRTC() {
         audio: true,
       });
       streamRef.current = stream;
+      setStream(stream);
       if (videoEl) videoEl.srcObject = stream;
-
-      // Audio meter
-      const ctx = new AudioContext();
-      audioCtxRef.current = ctx;
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analyserRef.current = analyser;
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const updateLevel = () => {
-        analyser.getByteFrequencyData(dataArray);
-        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-        setAudioLevel(avg / 255);
-        animFrameRef.current = requestAnimationFrame(updateLevel);
-      };
-      updateLevel();
-
+      startAudioMeter(stream);
       setCameraReady(true);
       return stream;
     } catch (err) {
       setError('Could not access camera/microphone: ' + err.message);
       return null;
     }
-  }, [cleanup]);
+  }, [cleanup, startAudioMeter]);
 
   const startScreenShare = useCallback(async (videoEl) => {
+    if (isBroadcasting()) {
+      setError('End the current broadcast before switching source');
+      return null;
+    }
     cleanup();
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -100,27 +137,9 @@ export default function useWebRTC() {
         audio: true,
       });
       streamRef.current = stream;
+      setStream(stream);
       if (videoEl) videoEl.srcObject = stream;
-
-      // Audio meter for screen share audio if available
-      if (stream.getAudioTracks().length > 0) {
-        const ctx = new AudioContext();
-        audioCtxRef.current = ctx;
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
-        analyserRef.current = analyser;
-
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        const updateLevel = () => {
-          analyser.getByteFrequencyData(dataArray);
-          const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-          setAudioLevel(avg / 255);
-          animFrameRef.current = requestAnimationFrame(updateLevel);
-        };
-        updateLevel();
-      }
+      startAudioMeter(stream);
 
       stream.getVideoTracks()[0].onended = () => cleanup();
       setCameraReady(true);
@@ -129,93 +148,30 @@ export default function useWebRTC() {
       setError('Could not share screen: ' + err.message);
       return null;
     }
-  }, [cleanup]);
+  }, [cleanup, startAudioMeter]);
 
   // ─────────────────────────────────────────
-  // sendLiveStream(slot)
-  // Starts MediaRecorder on the local stream and streams
-  // webm chunks to the media server via a single long-lived
-  // POST request body. The request stays open until the
-  // recorder stops, which mirrors "pushing" a live signal.
+  // goLive
+  // Marks the stream live via the API, then hands the local
+  // camera/screen stream to the module-scoped broadcast.js
+  // singleton, which pushes webm chunks over the ingest socket and
+  // survives React unmounts (page navigation).
   // ─────────────────────────────────────────
-  const sendLiveStream = useCallback(async (slot = 'cam1') => {
-    const stream = streamRef.current;
-    if (!stream) throw new Error('No camera or screen share active');
-
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-      ? 'video/webm;codecs=vp8,opus'
-      : 'video/webm';
-
-    const recorder = new MediaRecorder(stream, {
-      mimeType,
-      videoBitsPerSecond: 2_500_000,
-      audioBitsPerSecond: 128_000,
-    });
-
-    const queue = new TransformStream();
-    const writer = queue.writable.getWriter();
-    const abortCtrl = new AbortController();
-
-    mediaRecorderRef.current = recorder;
-    streamWriterRef.current = writer;
-    abortCtrlRef.current = abortCtrl;
-
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) {
-        writer.write(e.data).catch(() => {});
-      }
-    };
-
-    recorder.onerror = () => {
-      setError('MediaRecorder failed — check camera/mic permissions');
-      setIsLive(false);
-    };
-
-    recorder.onstop = () => {
-      // Closing the writer ends the request body → server
-      // finishes the final HLS segment and closes FFmpeg.
-      writer.close().catch(() => {});
-      streamWriterRef.current = null;
-    };
-
-    const mediaUrl = (import.meta.env.VITE_MEDIA_SERVER_URL || 'http://localhost:3001').replace(/\/$/, '');
-    const response = await fetch(`${mediaUrl}/ingest/${slot}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'video/webm',
-        'X-Camera-Slot': slot,
-      },
-      body: queue.readable,
-      signal: abortCtrl.signal,
-      // Don't auto-follow errors silently; surface network failures
-    }).catch(() => null);
-
-    if (!response) {
-      throw new Error('Could not reach the ingest server');
-    }
-    if (abortCtrl.signal.aborted) return;
-
-    recorder.start(1000);
-    return recorder;
-  }, []);
-
   const goLive = useCallback(async ({ title, description, event_id, slot }) => {
     if (!streamRef.current) {
       setError('No camera or screen share active');
       return false;
     }
 
+    if (isBroadcasting()) {
+      setError('Broadcast already in progress');
+      setIsLive(true);
+      return true;
+    }
+
     try {
       const streamStatus = await startStream({ title, description, event_id });
-      ingestSlotRef.current = slot || 'cam1';
-
-      // MediaRecorder + streaming POST replaces the old WHIP handshake.
-      // The fetch request stays open for the whole broadcast; any network
-      // failure surfaces via the error state instead of the caller.
-      sendLiveStream(ingestSlotRef.current).catch((err) => {
-        setError('Ingest failed: ' + err.message);
-        setIsLive(false);
-      });
+      await startBroadcast({ stream: streamRef.current, slot: slot || 'cam1' });
 
       setError(null);
       setIsLive(true);
@@ -224,25 +180,25 @@ export default function useWebRTC() {
       setError('Failed to go live: ' + err.message);
       return false;
     }
-  }, [sendLiveStream]);
+  }, []);
 
   const endLive = useCallback(async () => {
-    // Stop the recorder → final chunk flushed → request body ends
-    // → server closes FFmpeg stdin gracefully.
-    stopMediaRecorder();
-    // Let the final chunk drain, then stop camera tracks.
-    setTimeout(() => {
-      stopIngestStream();
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
-    }, 800);
+    // Stop the broadcast: recorder stops → final chunk flushed →
+    // ingest socket closes → server closes FFmpeg stdin gracefully.
+    stopBroadcast();
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setStream(null);
+    setCameraReady(false);
+    setAudioLevel(0);
 
     try {
       await apiEndStream();
     } catch {}
     setIsLive(false);
-  }, [stopMediaRecorder, stopIngestStream]);
+  }, []);
 
   useEffect(() => {
     return cleanup;
@@ -253,7 +209,8 @@ export default function useWebRTC() {
     audioLevel,
     isLive,
     error,
-    stream: streamRef.current,
+    stream,
+    liveSlot: isLive ? getBroadcastSlot() : null,
     startCamera,
     startScreenShare,
     goLive,

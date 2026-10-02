@@ -3,11 +3,13 @@ const http = require('node:http');
 
 const { config } = require('./config');
 const ingestRouter = require('./ingest');
+const { attachIngestWebSocket } = require('./ingest/ws');
 const mixerRouter = require('./mixer');
 const transcoderRouter = require('./transcoder');
 const packagerRouter = require('./packager');
 const recorderRouter = require('./recorder');
 const webhooksRouter = require('./webhooks');
+const restreamRouter = require('./restream');
 
 const app = express();
 app.use(express.json());
@@ -38,6 +40,7 @@ app.get('/health', (_req, res) => {
 // Internal routes — protected by x-media-secret
 // ─────────────────────────────────────────
 app.use('/internal', requireInternalAuth, mixerRouter);
+app.use('/internal/restream', requireInternalAuth, restreamRouter);
 
 // ─────────────────────────────────────────
 // Public routes — called by broadcaster browsers
@@ -67,6 +70,10 @@ app.use((err, _req, res, _next) => {
 });
 
 const server = http.createServer(app);
+
+// Live ingest arrives as WebSocket binary frames on /ingest/:slot.
+// Must be attached to the HTTP server before it starts listening.
+attachIngestWebSocket(server);
 
 server.listen(config.port, () => {
   console.log(`Media server listening on http://localhost:${config.port}`);

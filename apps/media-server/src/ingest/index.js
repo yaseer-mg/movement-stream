@@ -9,17 +9,20 @@ const {
 } = require('../transcoder');
 const { config } = require('../config');
 const { generateMasterPlaylist } = require('../packager');
+const { notifyApiServer, dropPreviousConnection, handleSlotClosed } = require('./shared');
 
 const router = Router();
 
 // ─────────────────────────────────────────
 // POST /ingest/:slot
-// Receives a live webm upload from a broadcaster
-// (MediaRecorder → streaming fetch body) and tees the
-// bytes into four per-slot FFmpeg processes, each writing
-// one HLS rendition.
+// Streams a live webm upload from a broadcaster and tees the bytes
+// into four per-slot FFmpeg processes, each writing one HLS
+// rendition. The request stays open for the duration of the
+// broadcast.
 //
-// The request stays open for the duration of the broadcast.
+// Live browsers use the WebSocket route in ./ws.js instead — Chrome
+// cannot send a ReadableStream request body over HTTP/1.1. This HTTP
+// route is kept for scripted/CLI uploads and tests.
 // ─────────────────────────────────────────
 router.post('/:slot', async (req, res) => {
   const { slot } = req.params;
@@ -34,13 +37,7 @@ router.post('/:slot', async (req, res) => {
   }
 
   // Abort any existing ingest on this slot
-  if (connections.has(slot)) {
-    const old = connections.get(slot);
-    console.log(`[Ingest] Aborting previous connection on ${slot}`);
-    try { old.req.destroy(); } catch {}
-    try { old.abortController?.abort(); } catch {}
-    connections.remove(slot);
-  }
+  dropPreviousConnection(slot);
 
   const abortController = new AbortController();
   const createdAt = new Date();
@@ -105,8 +102,13 @@ router.post('/:slot', async (req, res) => {
   });
 
   req.on('close', () => {
-    if (connections.has(slot)) {
-      connections.remove(slot);
+    // The body never reached a clean EOF (or a newer broadcaster took
+    // this slot). Send end-of-stream to FFmpeg so it finalizes its
+    // playlists, and tell the API server the camera dropped so it can
+    // wind the broadcast down instead of leaving stale "LIVE" state.
+    if (connections.get(slot) === entry) {
+      console.log(`[Ingest] ${slot} connection closed without clean end`);
+      handleSlotClosed(slot);
     }
   });
 
@@ -143,7 +145,8 @@ router.delete('/:slot', (req, res) => {
   }
 
   const entry = connections.get(slot);
-  try { entry.req.destroy(); } catch {}
+  try { entry.req?.destroy(); } catch {}
+  try { entry.ws?.close(1000, 'stopped by mixer'); } catch {}
   connections.remove(slot);
 
   res.json({ success: true, message: `Ingest on ${slot} stopped` });
@@ -170,22 +173,9 @@ router.get('/health', (_req, res) => {
 });
 
 // ─────────────────────────────────────────
-// notifyApiServer(eventType, data)
-// Fire-and-forget callback to the api-server.
+// notifyApiServer / dropPreviousConnection / handleSlotClosed
+// Live in ./shared.js so the HTTP and WebSocket ingest routes
+// wind a slot down identically.
 // ─────────────────────────────────────────
-async function notifyApiServer(eventType, data) {
-  try {
-    await fetch(`${config.apiServer.url}/api/stream/camera-event`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-media-secret': config.apiServer.secret,
-      },
-      body: JSON.stringify({ event: eventType, ...data }),
-    });
-  } catch {
-    console.log(`[Ingest] Could not notify api-server about ${eventType}`);
-  }
-}
 
 module.exports = router;

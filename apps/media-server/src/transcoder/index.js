@@ -130,6 +130,11 @@ function startTranscoding(slot) {
   const stdins = [];
 
   for (const preset of QUALITY_PRESETS) {
+    // FFmpeg's HLS muxer will not create the output directory —
+    // ensure it exists so segment writes cannot fail after a
+    // cleanup removed it.
+    fs.mkdirSync(slotDir(slot, preset.name), { recursive: true });
+
     const args = buildProcessArgs(slot, preset);
     const ffmpeg = spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'] });
 
