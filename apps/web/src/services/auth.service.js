@@ -33,6 +33,11 @@ export async function getMe() {
   return data.data.user;
 }
 
+export async function getStaff() {
+  const { data } = await api.get('/api/auth/staff');
+  return data.data.users;
+}
+
 export async function createStaff({ email, password, display_name, role }) {
   const { data } = await api.post('/api/auth/create-staff', {
     email,
