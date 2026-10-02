@@ -3,6 +3,7 @@ import Navbar from '../../components/ui/Navbar';
 import Footer from '../../components/ui/Footer';
 import { useAuthContext } from '../../context/AuthContext';
 import { getCameraSlots, connectCamera, disconnectCamera } from '../../services/camera.service';
+import useWebSocket from '../../hooks/useWebSocket';
 
 export default function CameraOp() {
   const { user } = useAuthContext();
@@ -28,6 +29,24 @@ export default function CameraOp() {
     timerRef.current = setInterval(() => refresh(true), 5000);
     return () => clearInterval(timerRef.current);
   }, [refresh]);
+
+  // The API server broadcasts camera.connected / camera.disconnected for
+  // every ingest connect and teardown, so the cards react immediately
+  // instead of waiting out the poll interval. The REST refresh above
+  // still owns label/ON AIR fields and covers anything missed offline.
+  const applyCameraEvent = useCallback((msg) => {
+    const event = msg?.type;
+    if (event !== 'camera.connected' && event !== 'camera.disconnected') return;
+    const slot = msg?.data?.slot;
+    if (!slot) return;
+    setCameras((prev) =>
+      prev.map((camera) =>
+        camera.slot === slot ? { ...camera, is_connected: event === 'camera.connected' } : camera
+      )
+    );
+  }, []);
+
+  useWebSocket(applyCameraEvent, () => refresh(true));
 
   const toggle = async (camera, targetState) => {
     setBusySlot(camera.slot);
