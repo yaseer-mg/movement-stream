@@ -73,7 +73,18 @@ function handleSelect(sql, params) {
       rows = rows.filter((u) => u.email === params[0]);
     }
     if (lower.includes('where id = $1')) {
-      rows = rows.filter((u) => u.id === params[0]);
+      rows = rows.filter((u) => u.id === params[0] && (!lower.includes('is_active') || u.is_active));
+    }
+    // Honour column projection like Postgres does, so a route that
+    // selects specific columns can't be caught leaking others.
+    const colsMatch = lower.match(/select\s+([\s\S]+?)\s+from\s+users/);
+    if (colsMatch && !colsMatch[1].trim().startsWith('*')) {
+      const cols = colsMatch[1].split(',').map((c) => c.trim().split(/\s+/).pop().replace('u.', ''));
+      rows = rows.map((row) => {
+        const projected = {};
+        for (const col of cols) if (row[col] !== undefined) projected[col] = row[col];
+        return projected;
+      });
     }
     return rows;
   }

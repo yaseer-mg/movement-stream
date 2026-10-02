@@ -9,6 +9,94 @@ const socialService = require('../services/social.service');
 const router = Router();
 
 // ─────────────────────────────────────────
+// performStreamEnd(reason)
+// Shared end-of-stream routine used by the admin "End Stream"
+// button and by the server-side watchdog when the last camera
+// connection drops abruptly. Idempotent: no-ops if not live.
+// ─────────────────────────────────────────
+async function performStreamEnd(reason) {
+  const current = await queryOne('SELECT * FROM stream_status LIMIT 1');
+
+  if (!current || !current.is_live) {
+    return null;
+  }
+
+  const [status] = await query(
+    `UPDATE stream_status SET
+       is_live = false,
+       ended_at = now(),
+       updated_at = now()
+     RETURNING id, ended_at`
+  );
+
+  // If linked to an event, mark that event as ended
+  if (current.event_id) {
+    await query(
+      "UPDATE events SET status = 'ended', updated_at = now() WHERE id = $1",
+      [current.event_id]
+    );
+  }
+
+  // Broadcast to all connected clients
+  broadcast({
+    type: 'stream.ended',
+    data: { ended_at: status.ended_at },
+  });
+
+  // Tell media server to finalize the recording session —
+  // snapshots the active camera feed, concatenates segments
+  // into an mp4, and creates the recording record.
+  try {
+    await fetch(`${env.mediaServer.url}/internal/session/end`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-media-secret': env.mediaServer.secret,
+      },
+      body: JSON.stringify({ streamId: status.id }),
+    });
+  } catch {
+    console.log('Could not reach media server for session end');
+  }
+
+  // Stop the RTMP push to social platforms
+  try {
+    await fetch(`${env.mediaServer.url}/internal/restream/stop`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-media-secret': env.mediaServer.secret,
+      },
+    });
+    console.log('Restream stopped');
+  } catch {
+    console.log('Could not reach media server for restream stop');
+  }
+
+  // Stop all transcoding and clean the HLS directory so stale
+  // segments never leak into the next broadcast (or restream).
+  try {
+    await fetch(`${env.mediaServer.url}/internal/mixer/stop-all`, {
+      method: 'POST',
+      headers: { 'x-media-secret': env.mediaServer.secret },
+    });
+    console.log('Transcoding stopped, HLS cleaned');
+  } catch {
+    console.log('Could not reach media server for stop-all');
+  }
+
+  // Fire a social media post with the public recordings page link
+  // (fire-and-forget — never await, never fail the request)
+  const recordingsUrl = `${env.social.streamPublicUrl}/recordings`;
+  socialService
+    .notifyStreamEnd(recordingsUrl)
+    .catch((err) => console.log('Social notify failed:', err.message));
+
+  console.log(`Stream ended (${reason})`);
+  return status;
+}
+
+// ─────────────────────────────────────────
 // POST /api/stream/camera-event
 // Internal — called by the media server when a camera
 // connects or disconnects. Protected by x-media-secret.
@@ -23,6 +111,15 @@ router.post('/camera-event', async (req, res, next) => {
 
     const { event, slot } = req.body;
     const validSlots = ['cam1', 'cam2', 'cam3'];
+
+    // Watchdog: the last camera connection vanished mid-broadcast.
+    // Wind the stream down server-side so the platform never gets
+    // stuck showing "LIVE" over a dead feed.
+    if (event === 'camera.all_disconnected') {
+      const ended = await performStreamEnd('all cameras disconnected');
+      console.log(`camera.all_disconnected → ${ended ? 'stream ended' : 'no live stream'}`);
+      return res.json({ success: true });
+    }
 
     if (!event || !slot || !validSlots.includes(slot)) {
       throw new AppError('event and slot (cam1/cam2/cam3) are required', 400, 'VALIDATION_ERROR');
@@ -95,7 +192,8 @@ router.post('/start', requireAuth, requireSuperAdmin, async (req, res, next) => 
          viewer_count = 0,
          peak_viewers = 0,
          updated_at = now()
-       RETURNING id, is_live, title, description, event_id, started_at`,
+       RETURNING id, is_live, title, description, event_id, active_camera,
+                 chat_enabled, viewer_count, peak_viewers, started_at, ended_at`,
       [title, description || null, event_id || null]
     );
 
@@ -107,10 +205,25 @@ router.post('/start', requireAuth, requireSuperAdmin, async (req, res, next) => 
       );
     }
 
-    // Broadcast to all connected WebSocket clients
+    // Broadcast to all connected WebSocket clients.
+    // Must carry the FULL status row — clients merge this straight into
+    // their stream store, so a partial payload would blank every field
+    // that isn't listed here (id, chat_enabled, active_camera, viewers).
     broadcast({
       type: 'stream.live',
-      data: { title, description, started_at: status.started_at },
+      data: {
+        id: status.id,
+        is_live: status.is_live,
+        title: status.title,
+        description: status.description,
+        event_id: status.event_id,
+        active_camera: status.active_camera,
+        chat_enabled: status.chat_enabled,
+        viewer_count: status.viewer_count,
+        peak_viewers: status.peak_viewers,
+        started_at: status.started_at,
+        ended_at: status.ended_at,
+      },
     });
 
     // Tell media server to start transcoding all connected cameras
@@ -141,6 +254,20 @@ router.post('/start', requireAuth, requireSuperAdmin, async (req, res, next) => 
       console.log('Could not reach media server for session start');
     }
 
+    // Start pushing the live feed out to configured social targets
+    try {
+      await fetch(`${env.mediaServer.url}/internal/restream/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-media-secret': env.mediaServer.secret,
+        },
+      });
+      console.log('Restream started');
+    } catch {
+      console.log('Could not reach media server for restream start');
+    }
+
     // Fire social media post (fire-and-forget — never await,
     // never let a social API failure fail the stream start)
     const streamUrl = `${env.social.streamPublicUrl}/watch`;
@@ -160,56 +287,11 @@ router.post('/start', requireAuth, requireSuperAdmin, async (req, res, next) => 
 // ─────────────────────────────────────────
 router.post('/end', requireAuth, requireSuperAdmin, async (req, res, next) => {
   try {
-    const current = await queryOne('SELECT * FROM stream_status LIMIT 1');
+    const status = await performStreamEnd('admin');
 
-    if (!current || !current.is_live) {
+    if (!status) {
       throw new AppError('Stream is not currently live', 400, 'NOT_LIVE');
     }
-
-    const [status] = await query(
-      `UPDATE stream_status SET
-         is_live = false,
-         ended_at = now(),
-         updated_at = now()
-       RETURNING id, ended_at`
-    );
-
-    // If linked to an event, mark that event as ended
-    if (current.event_id) {
-      await query(
-        "UPDATE events SET status = 'ended', updated_at = now() WHERE id = $1",
-        [current.event_id]
-      );
-    }
-
-    // Broadcast to all connected clients
-    broadcast({
-      type: 'stream.ended',
-      data: { ended_at: status.ended_at },
-    });
-
-    // Tell media server to finalize the recording session —
-    // snapshots the active camera feed, concatenates segments
-    // into an mp4, and creates the recording record.
-    try {
-      await fetch(`${env.mediaServer.url}/internal/session/end`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-media-secret': env.mediaServer.secret,
-        },
-        body: JSON.stringify({ streamId: status.id }),
-      });
-    } catch {
-      console.log('Could not reach media server for session end');
-    }
-
-    // Fire social media post with the public recordings page link
-    // (fire-and-forget — never await, never fail the request)
-    const recordingsUrl = `${env.social.streamPublicUrl}/recordings`;
-    socialService
-      .notifyStreamEnd(recordingsUrl)
-      .catch((err) => console.log('Social notify failed:', err.message));
 
     res.json({ success: true, data: { status } });
   } catch (err) {
@@ -286,21 +368,6 @@ router.patch('/chat', requireAuth, requireAdmin, async (req, res, next) => {
     });
 
     res.json({ success: true, data: { chat_enabled: enabled } });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ─────────────────────────────────────────
-// GET /api/stream/key
-// Super admin — get the secret stream key.
-// This is the ONLY endpoint that exposes it.
-// ─────────────────────────────────────────
-router.get('/key', requireAuth, requireSuperAdmin, async (_req, res, next) => {
-  try {
-    const row = await queryOne('SELECT stream_key FROM stream_status LIMIT 1');
-
-    res.json({ success: true, data: { stream_key: row.stream_key } });
   } catch (err) {
     next(err);
   }

@@ -471,7 +471,7 @@ describe('Stream Routes', () => {
   });
 
   describe('GET /api/stream/key', () => {
-    it('should return stream key for super_admin', async () => {
+    it('should no longer expose the stream key', async () => {
       const request = require('supertest');
       const app = createApp('/api/stream', streamRouter);
 
@@ -482,8 +482,9 @@ describe('Stream Routes', () => {
         .get('/api/stream/key')
         .set('Authorization', `Bearer ${token}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.data.stream_key).toBeDefined();
+      // The browser ingests over the WebSocket, so nothing consumed this
+      // secret. The route and its client wrapper were removed.
+      expect(res.status).toBe(404);
     });
   });
 });

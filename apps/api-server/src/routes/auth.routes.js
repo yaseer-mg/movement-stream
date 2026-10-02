@@ -329,4 +329,22 @@ router.post('/create-staff', requireAuth, requireSuperAdmin, async (req, res, ne
   } catch (err) { next(err); }
 });
 
+// ─────────────────────────────────────────
+// GET /api/auth/staff
+// Super admin only — lists every account so the Team
+// screen has something to render next to "Create Staff".
+// Never exposes password_hash.
+// ─────────────────────────────────────────
+router.get('/staff', requireAuth, requireSuperAdmin, async (_req, res, next) => {
+  try {
+    const users = await query(
+      `SELECT id, email, display_name, role, is_active, last_login_at, created_at
+         FROM users
+        ORDER BY created_at DESC`
+    );
+
+    res.json({ success: true, data: { users } });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

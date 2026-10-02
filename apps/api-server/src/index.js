@@ -5,12 +5,13 @@ const http = require('node:http');
 const { env } = require('./config/env');
 const { closePool } = require('./db/pool');
 const { errorHandler, notFoundHandler } = require('./middleware/error-handler');
-const authRoutes = require('./routes/auth');
+const authRoutes = require('./routes/auth.routes');
 const eventRoutes = require('./routes/events');
 const streamRoutes = require('./routes/stream');
 const chatRoutes = require('./routes/chat');
 const recordingRoutes = require('./routes/recordings');
 const cameraRoutes = require('./routes/camera');
+const restreamRoutes = require('./routes/restream');
 const { initWebSocket } = require('./websocket');
 const { startScheduler, stopScheduler } = require('./services/scheduler.service');
 
@@ -33,6 +34,7 @@ app.use('/api/stream', streamRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/recordings', recordingRoutes);
 app.use('/api/camera', cameraRoutes);
+app.use('/api/restream', restreamRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

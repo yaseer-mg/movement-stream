@@ -272,13 +272,13 @@ describe('Integration: Stream Control Flow', () => {
     expect(chatOff.status).toBe(200);
     expect(db.stream_status.chat_enabled).toBe(false);
 
-    // 5. Get stream key
+    // 5. The stream key is no longer exposed over HTTP — the browser
+    //    ingests over the WebSocket, so nothing consumed it.
     const keyRes = await request(app)
       .get('/api/stream/key')
       .set('Authorization', `Bearer ${saToken}`);
 
-    expect(keyRes.status).toBe(200);
-    expect(keyRes.body.data.stream_key).toBeDefined();
+    expect(keyRes.status).toBe(404);
 
     // 6. End stream
     const endRes = await request(app)
@@ -291,6 +291,7 @@ describe('Integration: Stream Control Flow', () => {
     // 7. Verify status after end
     const status2 = await request(app).get('/api/stream/status');
     expect(status2.body.data.status.is_live).toBe(false);
+    expect(status2.body.data.status).not.toHaveProperty('stream_key');
   });
 });
 

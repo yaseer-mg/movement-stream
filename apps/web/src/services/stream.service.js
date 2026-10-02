@@ -24,8 +24,3 @@ export async function toggleChat(enabled) {
   const { data } = await api.patch('/api/stream/chat', { enabled });
   return data.data.chat_enabled;
 }
-
-export async function getStreamKey() {
-  const { data } = await api.get('/api/stream/key');
-  return data.data.stream_key;
-}
