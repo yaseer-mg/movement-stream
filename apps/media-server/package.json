@@ -1,7 +1,7 @@
 {
   "name": "media-server",
   "version": "1.0.0",
-  "description": "Movement Stream — WebRTC Ingest + FFmpeg Transcoding + HLS",
+  "description": "FAEEZ LIVE — WebRTC Ingest + FFmpeg Transcoding + HLS",
   "main": "src/index.js",
   "scripts": {
     "dev": "node --watch src/index.js",

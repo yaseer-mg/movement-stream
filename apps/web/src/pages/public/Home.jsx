@@ -27,7 +27,7 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-brand-green-dark/30 to-brand-dark" />
           <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-32 text-center">
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight">
-              Movement Stream
+              FAEEZ LIVE
             </h1>
             <p className="mt-4 text-lg sm:text-xl text-brand-light-dim max-w-2xl mx-auto leading-relaxed">
               Spreading peace, unity, and knowledge through live broadcast across Nigeria and the world.
@@ -81,7 +81,7 @@ export default function Home() {
                 With millions of members across the nation, we work tirelessly to spread a message of hope and harmony.
               </p>
               <p>
-                Through Movement Stream, we bring our conferences, seminars, and events directly to you — wherever you are in the world.
+                Through FAEEZ LIVE, we bring our conferences, seminars, and events directly to you — wherever you are in the world.
               </p>
             </div>
           </div>

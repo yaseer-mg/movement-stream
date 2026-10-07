@@ -11,7 +11,7 @@ WHERE NOT EXISTS (
   SELECT 1 FROM pg_roles WHERE rolname = 'movement_user'
 )\gexec
 
-SELECT 'CREATE DATABASE movement_stream OWNER movement_user'
+SELECT 'CREATE DATABASE faeez_live OWNER movement_user'
 WHERE NOT EXISTS (
-  SELECT 1 FROM pg_database WHERE datname = 'movement_stream'
+  SELECT 1 FROM pg_database WHERE datname = 'faeez_live'
 )\gexec

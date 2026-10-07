@@ -10,7 +10,7 @@ export default function Footer() {
               <div className="w-6 h-6 rounded-full bg-brand-green flex items-center justify-center">
                 <span className="text-white text-xxs font-bold">MS</span>
               </div>
-              <span className="text-white font-bold">Movement Stream</span>
+              <span className="text-white font-bold">FAEEZ LIVE</span>
             </div>
             <p className="text-brand-light-muted text-sm leading-relaxed">
               Spreading peace, unity, and knowledge through live broadcast.
@@ -37,7 +37,7 @@ export default function Footer() {
 
         <div className="border-t border-brand-dark-border mt-8 pt-6 text-center">
           <p className="text-brand-light-muted text-xs">
-            &copy; {new Date().getFullYear()} Movement Stream. All rights reserved.
+            &copy; {new Date().getFullYear()} FAEEZ LIVE. All rights reserved.
           </p>
         </div>
       </div>

@@ -4,9 +4,9 @@
 -- Run this ONE file to set up the entire database from scratch.
 --
 -- Usage:
---   psql -U postgres -d movement_stream -f run_migrations.sql
+--   psql -U postgres -d faeez_live -f run_migrations.sql
 -- Or, after 000_create_database.sql:
---   PGPASSWORD='Movement2025!' psql -h localhost -U movement_user -d movement_stream -f run_migrations.sql
+--   PGPASSWORD='Movement2025!' psql -h localhost -U movement_user -d faeez_live -f run_migrations.sql
 -- ============================================================
 
 \echo '>>> Running Migration 001: Users...'

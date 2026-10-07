@@ -151,7 +151,7 @@ function initWebSocket(server) {
     // Welcome message — confirms connection is live
     ws.send(JSON.stringify({
       type: 'connection.ready',
-      data: { message: 'Connected to Movement Stream' },
+      data: { message: 'Connected to FAEEZ LIVE' },
     }));
 
     // Update viewer count after adding the client

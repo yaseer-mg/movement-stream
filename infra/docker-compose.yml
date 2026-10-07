@@ -1,5 +1,5 @@
 # ============================================================
-# Movement Stream — Docker Compose (development)
+# FAEEZ LIVE — Docker Compose (development)
 # ============================================================
 # Services:
 #   postgres     — database, runs migrations from ./postgres on first init
@@ -24,7 +24,7 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: movement_stream
+      POSTGRES_DB: faeez_live
       POSTGRES_USER: movement_user
       POSTGRES_PASSWORD: Movement2025!
     ports:
@@ -33,7 +33,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U movement_user -d movement_stream"]
+      test: ["CMD-SHELL", "pg_isready -U movement_user -d faeez_live"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -83,7 +83,7 @@ services:
       - "8081:80"
     volumes:
       - ./nginx.dev.conf:/etc/nginx/nginx.conf:ro
-      - web_build:/var/www/movement-stream:ro
+      - web_build:/var/www/faeez-live:ro
       - hls_data:/var/hls:ro
       - recordings_temp:/var/recordings:ro
     depends_on:

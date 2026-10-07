@@ -31,7 +31,7 @@ export default function AdminLayout({ children }) {
               <span className="text-white text-xs font-bold">MS</span>
             </div>
             <div>
-              <p className="text-white text-sm font-semibold">Movement Stream</p>
+              <p className="text-white text-sm font-semibold">FAEEZ LIVE</p>
               <p className="text-brand-light-muted text-xs capitalize">{user?.role?.replace('_', ' ')}</p>
             </div>
           </div>

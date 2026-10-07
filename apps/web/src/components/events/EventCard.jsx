@@ -35,7 +35,7 @@ export default function EventCard({ event }) {
         <div className="aspect-video bg-cover bg-center" style={{ backgroundImage: `url(${event.thumbnail_url})` }} />
       ) : (
         <div className="aspect-video bg-gradient-to-br from-brand-green-dark to-brand-dark flex items-center justify-center">
-          <span className="text-brand-light-dim text-lg font-bold">Movement Stream</span>
+          <span className="text-brand-light-dim text-lg font-bold">FAEEZ LIVE</span>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-# Movement Stream — Local run + complete missing components
+# FAEEZ LIVE — Local run + complete missing components
 
 ## Goal
 Get the stack running locally at http://localhost:8081 and complete the missing

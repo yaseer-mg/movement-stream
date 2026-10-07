@@ -1,6 +1,6 @@
-# Movement Stream — Agent Operational Guide (agent.md)
+# FAEEZ LIVE — Agent Operational Guide (agent.md)
 
-This document is the step-by-step operational guide for the code agent building Movement Stream.
+This document is the step-by-step operational guide for the code agent building FAEEZ LIVE.
 Read `prompt.md` first for the full system overview, rules, and architecture.
 This document contains the detailed instructions for every single build step.
 
@@ -540,7 +540,7 @@ location /api/ {
 
 # React frontend
 location / {
-    root /var/www/movement-stream;
+    root /var/www/faeez-live;
     try_files $uri $uri/ /index.html;   # React Router support
 }
 ```
@@ -1226,7 +1226,7 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: movement_stream
+      POSTGRES_DB: faeez_live
       POSTGRES_USER: movement_user
       POSTGRES_PASSWORD: Movement2025!
     volumes:

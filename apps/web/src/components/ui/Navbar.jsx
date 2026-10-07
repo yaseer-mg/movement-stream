@@ -12,7 +12,7 @@ export default function Navbar() {
             <div className="w-8 h-8 rounded-full bg-brand-green flex items-center justify-center">
               <span className="text-white text-xs font-bold">MS</span>
             </div>
-            <span className="text-brand-light font-bold text-lg hidden sm:block">Movement Stream</span>
+            <span className="text-brand-light font-bold text-lg hidden sm:block">FAEEZ LIVE</span>
           </Link>
 
           <div className="flex items-center gap-1 sm:gap-2">

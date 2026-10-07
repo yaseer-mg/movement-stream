@@ -25,6 +25,11 @@ const QUALITY_PRESETS = [
 // ─────────────────────────────────────────
 const activeProcesses = new Map();
 
+function activePresets() {
+  const enabled = Array.isArray(config.hls?.renditions) ? config.hls.renditions : HLS_RENDITION_NAMES;
+  return QUALITY_PRESETS.filter((preset) => enabled.includes(preset.name));
+}
+
 function slotDir(slot, quality) {
   return path.join(config.hls.outputPath, slot, quality);
 }
@@ -91,6 +96,8 @@ function buildProcessArgs(slot, preset) {
 // camera starts with a clean playlist. Safe because any
 // session that needed those segments already snapshotted
 // them into the recording workspace at switch/end time.
+// Walks every known preset, not just the active ones, so a
+// rendition disabled since the last run leaves no stale dir.
 // ─────────────────────────────────────────
 function clearSlotHls(slot) {
   const hlsBase = config.hls.outputPath;
@@ -115,9 +122,9 @@ function clearSlotHls(slot) {
 
 // ─────────────────────────────────────────
 // startTranscoding(slot)
-// Spawns four FFmpeg processes (one per quality level),
-// each reading webm from its own stdin. Returns the entry
-// whose stdins the ingest route writes (tees) to.
+// Spawns one FFmpeg process per active rendition, each
+// reading webm from its own stdin. Returns the entry whose
+// stdins the ingest route writes (tees) to.
 // ─────────────────────────────────────────
 function startTranscoding(slot) {
   if (activeProcesses.has(slot)) {
@@ -126,10 +133,11 @@ function startTranscoding(slot) {
 
   clearSlotHls(slot);
 
+  const presets = activePresets();
   const processes = [];
   const stdins = [];
 
-  for (const preset of QUALITY_PRESETS) {
+  for (const preset of presets) {
     // FFmpeg's HLS muxer will not create the output directory —
     // ensure it exists so segment writes cannot fail after a
     // cleanup removed it.
@@ -164,13 +172,15 @@ function startTranscoding(slot) {
   const entry = { slot, processes, stdins, createdAt: new Date() };
   activeProcesses.set(slot, entry);
 
-  console.log(`[Transcoder] Started 4-rendition pipeline for ${slot}`);
+  console.log(
+    `[Transcoder] Started ${presets.length}-rendition pipeline for ${slot} (${presets.map((p) => p.name).join(', ')})`
+  );
   return entry;
 }
 
 // ─────────────────────────────────────────
 // maybeCleanupSlot(slot)
-// Removes the slot entry once all four processes exit.
+// Removes the slot entry once every active process exits.
 // ─────────────────────────────────────────
 function maybeCleanupSlot(slot) {
   const entry = activeProcesses.get(slot);
@@ -203,6 +213,11 @@ function writeToSlot(slot, chunk) {
 
 // ─────────────────────────────────────────
 // endSlot(slot)
+// Signals end-of-stream to every FFmpeg stdin so they
+// finalize their HLS playlists, then force-kills after a
+// short grace period if they linger.
+// ─────────────────────────────────────────
+
 // Signals end-of-stream to every FFmpeg stdin so they
 // finalize their HLS playlists, then force-kills after a
 // short grace period if they linger.

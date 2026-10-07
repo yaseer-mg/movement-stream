@@ -1,4 +1,4 @@
-# Movement Stream — VPS Deployment Guide
+# FAEEZ LIVE — VPS Deployment Guide
 
 Production deployment for a self-hosted live streaming platform.
 Target: a single Ubuntu 24.04 VPS with at least **4 GB RAM** (FFmpeg transcoding at 4 quality levels is memory-hungry) and 2+ CPU cores.
@@ -96,7 +96,7 @@ It must see the `your-domain.com` cert paths — the guide uses a real domain,
 so replace `your-domain.com` everywhere below with your actual domain.
 
 ```bash
-cd ~/movement-stream
+cd ~/faeez-live
 
 # 1. Point the nginx config at your real domain
 sudo sed -i 's/your-domain.com/stream.yourdomain.com/g' infra/nginx.conf
@@ -122,8 +122,8 @@ DOMAIN=stream.yourdomain.com docker compose -f infra/docker-compose.prod.yml up 
 
 ```bash
 cd ~
-git clone https://github.com/YOUR-ORG/movement-stream.git
-cd movement-stream
+git clone https://github.com/YOUR-ORG/faeez-live.git
+cd faeez-live
 
 # Generate a deploy key / personal access token if the repo is private
 ```
@@ -133,7 +133,7 @@ cd movement-stream
 ### `apps/api-server/.env`
 
 ```bash
-cd ~/movement-stream/apps/api-server
+cd ~/faeez-live/apps/api-server
 cp .env.example .env
 nano .env
 ```
@@ -143,7 +143,7 @@ Set at minimum:
 ```
 NODE_ENV=production
 DB_HOST=postgres            # ← compose service name, NOT localhost
-DB_NAME=movement_stream
+DB_NAME=faeez_live
 DB_USER=movement_user
 DB_PASSWORD=<strong random password>
 JWT_ACCESS_SECRET=<generated secret>
@@ -181,7 +181,7 @@ openssl rand -hex 32   # use for MEDIA_SERVER_SECRET / API_SERVER_SECRET
 ### `apps/media-server/.env`
 
 ```bash
-cd ~/movement-stream/apps/media-server
+cd ~/faeez-live/apps/media-server
 cp .env.example .env
 nano .env
 ```
@@ -206,7 +206,7 @@ If the DB volume already exists (e.g. re-deploying), run them manually:
 
 ```bash
 docker compose -f infra/docker-compose.prod.yml exec postgres \
-  psql -U movement_user -d movement_stream \
+  psql -U movement_user -d faeez_live \
   -f /docker-entrypoint-initdb.d/run_migrations.sql
 ```
 
@@ -214,7 +214,7 @@ Verify the tables:
 
 ```bash
 docker compose -f infra/docker-compose.prod.yml exec postgres \
-  psql -U movement_user -d movement_stream -c '\dt'
+  psql -U movement_user -d faeez_live -c '\dt'
 ```
 
 The seed accounts from `infra/postgres/seed.sql` are inserted on first init too:
@@ -232,7 +232,7 @@ The seed accounts from `infra/postgres/seed.sql` are inserted on first init too:
 ## 9. Starting All Services
 
 ```bash
-cd ~/movement-stream
+cd ~/faeez-live
 DOMAIN=stream.yourdomain.com \
   docker compose -f infra/docker-compose.prod.yml up -d --build
 ```
@@ -284,12 +284,12 @@ sudo systemctl enable docker
 ### 11b. systemd unit for the stack
 
 ```bash
-sudo nano /etc/systemd/system/movement-stream.service
+sudo nano /etc/systemd/system/faeez-live.service
 ```
 
 ```ini
 [Unit]
-Description=Movement Stream Docker Compose stack
+Description=FAEEZ LIVE Docker Compose stack
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
@@ -297,7 +297,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-WorkingDirectory=/home/deploy/movement-stream
+WorkingDirectory=/home/deploy/faeez-live
 Environment=DOMAIN=stream.yourdomain.com
 ExecStart=/usr/bin/docker compose -f infra/docker-compose.prod.yml up -d --build
 ExecStop=/usr/bin/docker compose -f infra/docker-compose.prod.yml stop
@@ -311,8 +311,8 @@ Enable and start it:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now movement-stream
-sudo systemctl status movement-stream
+sudo systemctl enable --now faeez-live
+sudo systemctl status faeez-live
 ```
 
 Test a full reboot:
@@ -320,7 +320,7 @@ Test a full reboot:
 ```bash
 sudo reboot
 # after boot:
-docker compose -f ~/movement-stream/infra/docker-compose.prod.yml ps
+docker compose -f ~/faeez-live/infra/docker-compose.prod.yml ps
 ```
 
 ## Renewing the SSL Certificate
@@ -334,13 +334,13 @@ Add a cron job (or systemd timer) so renewal is automatic:
 ```bash
 sudo crontab -e
 # add:
-0 3 * * * certbot renew --quiet --deploy-hook "docker compose -f /home/deploy/movement-stream/infra/docker-compose.prod.yml restart nginx"
+0 3 * * * certbot renew --quiet --deploy-hook "docker compose -f /home/deploy/faeez-live/infra/docker-compose.prod.yml restart nginx"
 ```
 
 ## Updating the App
 
 ```bash
-cd ~/movement-stream
+cd ~/faeez-live
 git pull
 DOMAIN=stream.yourdomain.com docker compose -f infra/docker-compose.prod.yml up -d --build
 ```

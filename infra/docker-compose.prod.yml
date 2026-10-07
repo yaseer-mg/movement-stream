@@ -1,5 +1,5 @@
 # ============================================================
-# Movement Stream — Docker Compose (production)
+# FAEEZ LIVE — Docker Compose (production)
 # ============================================================
 # Same services as docker-compose.yml but hardened for a VPS:
 #   - DB not exposed to the host
@@ -18,7 +18,7 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: movement_stream
+      POSTGRES_DB: faeez_live
       POSTGRES_USER: movement_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Movement2025!}
     volumes:
@@ -26,7 +26,7 @@ services:
       - ./postgres:/docker-entrypoint-initdb.d
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U movement_user -d movement_stream"]
+      test: ["CMD-SHELL", "pg_isready -U movement_user -d faeez_live"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -80,7 +80,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - web_build:/var/www/movement-stream:ro
+      - web_build:/var/www/faeez-live:ro
       - hls_data:/var/hls:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro

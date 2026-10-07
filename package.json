@@ -1,8 +1,8 @@
 {
-  "name": "movement-stream",
+  "name": "faeez-live",
   "version": "1.0.0",
   "private": true,
-  "description": "Movement Stream — Live Streaming Platform",
+  "description": "FAEEZ LIVE — Live Streaming Platform",
   "scripts": {
     "test": "jest --forceExit --detectOpenHandles",
     "test:unit:foundation": "jest tests/unit/foundation.test.js --forceExit",

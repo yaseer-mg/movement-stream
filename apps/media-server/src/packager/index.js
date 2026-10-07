@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
-const { config } = require('../config');
+const { config, HLS_RENDITION_NAMES } = require('../config');
 
 const router = Router();
 
@@ -14,6 +14,11 @@ const QUALITY_LEVELS = [
   { name: '480p',  bandwidth: 1000000, resolution: '854x480' },
   { name: '240p',  bandwidth: 400000,  resolution: '426x240' },
 ];
+
+function activeLevels() {
+  const enabled = Array.isArray(config.hls?.renditions) ? config.hls.renditions : HLS_RENDITION_NAMES;
+  return QUALITY_LEVELS.filter((level) => enabled.includes(level.name));
+}
 
 // ─────────────────────────────────────────
 // generateMasterPlaylist(activeSlot = 'cam1')
@@ -29,7 +34,7 @@ function generateMasterPlaylist(activeSlot = 'cam1') {
   let content = '#EXTM3U\n';
   content += '#EXT-X-VERSION:3\n\n';
 
-  for (const level of QUALITY_LEVELS) {
+  for (const level of activeLevels()) {
     const playlistPath = `${activeSlot}/${level.name}/stream.m3u8`;
     const width = level.resolution.split('x')[0];
     const height = level.resolution.split('x')[1];
@@ -40,7 +45,9 @@ function generateMasterPlaylist(activeSlot = 'cam1') {
 
   fs.mkdirSync(hlsBase, { recursive: true });
   fs.writeFileSync(masterPath, content, 'utf-8');
-  console.log(`Master playlist written → ${masterPath} (active: ${activeSlot})`);
+  console.log(
+    `Master playlist written → ${masterPath} (active: ${activeSlot}, levels: ${activeLevels().map((l) => l.name).join(', ')})`
+  );
 
   return masterPath;
 }
@@ -82,8 +89,8 @@ function cleanupHlsDirectory() {
 
 // ─────────────────────────────────────────
 // getHlsStatus(activeSlot = 'cam1')
-// Returns which quality playlists exist and how many
-// segments each has for the active slot.
+// Returns which active-rendition playlists exist and how
+// many segments each has for the active slot.
 // ─────────────────────────────────────────
 function getHlsStatus(activeSlot = 'cam1') {
   const hlsBase = config.hls.outputPath;
@@ -92,7 +99,7 @@ function getHlsStatus(activeSlot = 'cam1') {
   const masterPath = path.join(hlsBase, 'master.m3u8');
   status.masterExists = fs.existsSync(masterPath);
 
-  for (const level of QUALITY_LEVELS) {
+  for (const level of activeLevels()) {
     const dir = path.join(hlsBase, activeSlot, level.name);
     const playlistPath = path.join(dir, 'stream.m3u8');
 

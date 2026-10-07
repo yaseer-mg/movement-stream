@@ -4,7 +4,7 @@
 -- DO NOT run this on production.
 --
 -- Usage:
---   psql -U postgres -d movement_stream -f seed.sql
+--   psql -U postgres -d faeez_live -f seed.sql
 -- ============================================================
 
 -- ─────────────────────────────────────────

@@ -1,5 +1,5 @@
 # ============================================================
-# Movement Stream — Local override for THIS machine
+# FAEEZ LIVE — Local override for THIS machine
 # ============================================================
 # The host already runs services on port 80 (nginx) and 5432
 # (Postgres); the base compose maps to free ports (8081 / 5437).
@@ -27,6 +27,13 @@ services:
       HOST: 0.0.0.0
       CORS_ORIGIN: http://localhost:8081
       STREAM_PUBLIC_URL: http://localhost:8081
+
+  media-server:
+    # This box has 2 CPUs and ~3.7 GiB RAM, so the full four-rendition
+    # ladder starves the host and triggers swap thrash. One rendition
+    # keeps local ingest and playback stable.
+    environment:
+      MEDIA_RENDITIONS: 480p
 
   web:
     build:

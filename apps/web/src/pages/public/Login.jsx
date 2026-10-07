@@ -71,7 +71,7 @@ export default function Login() {
             </h1>
             <p className="text-brand-light-muted text-sm mb-6">
               {mode === 'login'
-                ? 'Sign in to access the Movement Stream platform.'
+                ? 'Sign in to access the FAEEZ LIVE platform.'
                 : 'Register to participate in live discussions.'}
             </p>
 

@@ -15,6 +15,34 @@ function optional(key, fallback) {
   return process.env[key] ?? fallback;
 }
 
+const HLS_RENDITION_NAMES = ['1080p', '720p', '480p', '240p'];
+
+function parseRenditions(raw) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') {
+    return [...HLS_RENDITION_NAMES];
+  }
+
+  const requested = String(raw)
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+  const unknown = requested.filter((name) => !HLS_RENDITION_NAMES.includes(name));
+  if (unknown.length > 0) {
+    console.warn(`[config] Ignoring unknown MEDIA_RENDITIONS value(s): ${unknown.join(', ')}`);
+  }
+
+  const valid = requested.filter((name) => HLS_RENDITION_NAMES.includes(name));
+  if (valid.length === 0) {
+    console.warn(
+      `[config] MEDIA_RENDITIONS left no usable renditions; falling back to ${HLS_RENDITION_NAMES.join(', ')}`
+    );
+    return [...HLS_RENDITION_NAMES];
+  }
+
+  return HLS_RENDITION_NAMES.filter((name) => valid.includes(name));
+}
+
 const config = {
   port: parseInt(optional('PORT', '3001'), 10),
   nodeEnv: optional('NODE_ENV', 'development'),
@@ -27,6 +55,7 @@ const config = {
 
   hls: {
     outputPath: optional('HLS_OUTPUT_PATH', '/var/hls'),
+    renditions: parseRenditions(optional('MEDIA_RENDITIONS', '')),
   },
 
   recordings: {
@@ -41,4 +70,4 @@ const config = {
   },
 };
 
-module.exports = { config };
+module.exports = { config, HLS_RENDITION_NAMES };
