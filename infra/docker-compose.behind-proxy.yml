@@ -1,0 +1,59 @@
+# ============================================================
+# FAEEZ LIVE — Docker Compose overlay: stack behind a host nginx
+# ============================================================
+# Use when something else already owns the host's 80/443 — a system
+# nginx, an aaPanel/BT panel, or another site — so this stack cannot
+# publish those ports. The host nginx terminates TLS for the public
+# hostname and reverse-proxies to this stack on loopback.
+#
+# Applies to production on such a host, and to any subdomain test on it.
+#
+# What this changes on top of docker-compose.prod.yml:
+#   - nginx mounts infra/nginx.dev.conf instead of infra/nginx.conf.
+#     That config is HTTP-only (no ssl_certificate, no 301 redirect to
+#     https), so it can sit behind a TLS-terminating proxy without a
+#     redirect loop. Its /ingest/ block also carries the WebSocket
+#     Upgrade headers that Go Live needs.
+#   - Transcoding ladder defaults to 720p,480p,240p. Hosts that also run
+#     a panel, mail and another app share CPU, so 1080p is opt-in:
+#       MEDIA_RENDITIONS=1080p,720p,480p,240p
+#
+# Edge ports MUST be passed on the command line — Compose interpolation
+# reads the shell/.env, never a service's `environment:` block:
+#
+#   COMPOSE_PROJECT_NAME=faeez-live \
+#   DOMAIN=faeezlive.smacademyid.cloud \
+#   EDGE_HTTP_PORT=127.0.0.1:18080 \
+#   EDGE_HTTPS_PORT=127.0.0.1:18443 \
+#   POSTGRES_PASSWORD=... \
+#   docker compose -f infra/docker-compose.prod.yml \
+#                  -f infra/docker-compose.behind-proxy.yml up -d --build
+#
+# EDGE_HTTPS_PORT is published but unused here: the inner nginx has no
+# :443 listener, and Compose cannot remove a port the base file declares.
+# It is bound to loopback, so nothing on the internet can reach it.
+#
+# COMPOSE_PROJECT_NAME is mandatory: the project name otherwise defaults
+# to the basename of the compose file's directory ("infra") no matter
+# where the repo is cloned, so a second stack on this host would share
+# infra_postgres_data and destroy the first stack's database.
+#
+# The host nginx server block MUST set:
+#   proxy_set_header Upgrade $http_upgrade;
+#   proxy_set_header Connection $connection_upgrade;
+#   proxy_read_timeout 86400s;
+#   proxy_send_timeout 86400s;
+#   proxy_cache off;
+# Otherwise /ws and /ingest/ die after 60s, and live .m3u8 gets cached.
+# ============================================================
+
+services:
+  nginx:
+    volumes:
+      # Same target as the base file, so Compose replaces the mount
+      # rather than appending a second config.
+      - ./nginx.dev.conf:/etc/nginx/nginx.conf:ro
+
+  media-server:
+    environment:
+      MEDIA_RENDITIONS: ${MEDIA_RENDITIONS:-720p,480p,240p}

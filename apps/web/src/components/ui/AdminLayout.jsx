@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 
 const NAV_ITEMS = [
@@ -12,71 +13,114 @@ const NAV_ITEMS = [
   { to: '/admin/team', label: 'Team', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
 ];
 
+function SidebarContent({ user, onNavigate, onLogout }) {
+  return (
+    <>
+      <div className="p-4 border-b border-brand-dark-border">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-brand-green flex items-center justify-center">
+            <span className="text-white text-xs font-bold">MS</span>
+          </div>
+          <div>
+            <p className="text-white text-sm font-semibold">FAEEZ LIVE</p>
+            <p className="text-brand-light-muted text-xs capitalize">{user?.role?.replace('_', ' ')}</p>
+          </div>
+        </div>
+      </div>
+
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        {NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === '/admin'}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-brand-green/20 text-brand-green'
+                  : 'text-brand-light-dim hover:text-white hover:bg-brand-surface'
+              }`
+            }
+          >
+            <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+            </svg>
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="p-3 border-t border-brand-dark-border">
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm text-brand-light-dim hover:text-white hover:bg-brand-surface transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Logout
+        </button>
+      </div>
+    </>
+  );
+}
+
 export default function AdminLayout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = async () => {
+    setMenuOpen(false);
     await logout();
     navigate('/login');
   };
 
   return (
     <div className="min-h-screen flex bg-brand-dark">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex w-64 flex-col bg-brand-dark-card border-r border-brand-dark-border">
-        <div className="p-4 border-b border-brand-dark-border">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-brand-green flex items-center justify-center">
-              <span className="text-white text-xs font-bold">MS</span>
-            </div>
-            <div>
-              <p className="text-white text-sm font-semibold">FAEEZ LIVE</p>
-              <p className="text-brand-light-muted text-xs capitalize">{user?.role?.replace('_', ' ')}</p>
-            </div>
-          </div>
-        </div>
-
-        <nav className="flex-1 p-3 space-y-1">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/admin'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-brand-green/20 text-brand-green'
-                    : 'text-brand-light-dim hover:text-white hover:bg-brand-surface'
-                }`
-              }
-            >
-              <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-              </svg>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="p-3 border-t border-brand-dark-border">
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md text-sm text-brand-light-dim hover:text-white hover:bg-brand-surface transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Logout
-          </button>
-        </div>
+      {/* Sidebar (desktop) */}
+      <aside className="hidden lg:flex w-64 shrink-0 flex-col bg-brand-dark-card border-r border-brand-dark-border">
+        <SidebarContent user={user} onLogout={handleLogout} />
       </aside>
 
+      {/* Sidebar (mobile drawer) */}
+      {menuOpen && (
+        <div className="lg:hidden fixed inset-0 z-40 flex">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setMenuOpen(false)}
+          />
+          <aside className="relative flex h-full w-64 max-w-[80%] flex-col bg-brand-dark-card border-r border-brand-dark-border">
+            <SidebarContent
+              user={user}
+              onNavigate={() => setMenuOpen(false)}
+              onLogout={handleLogout}
+            />
+          </aside>
+        </div>
+      )}
+
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         {/* Top bar (mobile) */}
-        <header className="lg:hidden flex items-center justify-between p-4 border-b border-brand-dark-border bg-brand-dark-card">
+        <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between p-4 border-b border-brand-dark-border bg-brand-dark-card">
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open menu"
+              className="p-1.5 -ml-1.5 rounded-md text-brand-light-dim hover:text-white hover:bg-brand-surface transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             <div className="w-6 h-6 rounded-full bg-brand-green flex items-center justify-center">
               <span className="text-white text-xxs font-bold">MS</span>
             </div>
@@ -85,7 +129,7 @@ export default function AdminLayout({ children }) {
           <button onClick={handleLogout} className="text-brand-light-dim text-xs hover:text-white">Logout</button>
         </header>
 
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-4 sm:p-6 overflow-auto">
           {children}
         </main>
       </div>

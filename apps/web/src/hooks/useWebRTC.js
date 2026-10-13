@@ -110,7 +110,9 @@ export default function useWebRTC() {
     cleanup();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720, facingMode: 'user' },
+        // `ideal` (not a hard constraint) so single-camera desktops still work;
+        // on phones this selects the rear camera instead of the selfie camera.
+        video: { width: 1280, height: 720, facingMode: { ideal: 'environment' } },
         audio: true,
       });
       streamRef.current = stream;

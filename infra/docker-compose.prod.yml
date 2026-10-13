@@ -43,6 +43,11 @@ services:
       DB_HOST: postgres
       MEDIA_SERVER_URL: http://media-server:3001
       NODE_ENV: production
+      # api-server does server.listen(port, HOST) and HOST defaults to
+      # 127.0.0.1 (apps/api-server/src/config/env.js:40). Inside a
+      # container that binds the container's loopback only, so nginx in
+      # another container gets 502. Must be 0.0.0.0.
+      HOST: 0.0.0.0
     restart: unless-stopped
 
   media-server:
@@ -76,8 +81,13 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
-      - "443:443"
+      # Defaults keep the standalone VPS behaviour (edge nginx owns 80/443).
+      # When a HOST nginx already owns those ports, override both to loopback:
+      #   EDGE_HTTP_PORT=127.0.0.1:8080
+      #   EDGE_HTTPS_PORT=127.0.0.1:8443
+      # and let the host reverse-proxy the subdomain to 127.0.0.1:8080.
+      - "${EDGE_HTTP_PORT:-80}:80"
+      - "${EDGE_HTTPS_PORT:-443}:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - web_build:/var/www/faeez-live:ro

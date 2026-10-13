@@ -1,13 +1,21 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 
-export default function CameraPreview({ stream, mirrored = true }) {
+export default function CameraPreview({ stream, source = 'camera' }) {
   const videoRef = useRef(null);
+  const [facingMode, setFacingMode] = useState(null);
 
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
     }
+    const track = stream?.getVideoTracks?.()[0];
+    setFacingMode(track?.getSettings?.().facingMode ?? null);
   }, [stream]);
+
+  // Only mirror a selfie/front camera. The rear camera and screen shares
+  // must render unflipped so text isn't reversed.
+  const isRearCamera = facingMode === 'environment' || facingMode === 'back';
+  const mirrored = source === 'camera' && !isRearCamera;
 
   return (
     <div className="relative bg-black rounded-lg overflow-hidden">

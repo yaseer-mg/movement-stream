@@ -78,7 +78,7 @@ export default function Studio() {
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left: Camera preview + audio */}
         <div className="flex-1 space-y-4">
-          <CameraPreview stream={stream} mirrored={source === 'camera'} />
+          <CameraPreview stream={stream} source={source} />
 
           {/* If the broadcast outlived the previous mount of this page,
               say so — otherwise the operator has no way to tell that the
